@@ -1,9 +1,7 @@
 from torch import cuda, bfloat16
 import transformers
 import torch
-from huggingface_hub import login
 
-login()
 
 DEVICE = f"cuda:{cuda.current_device()}" if cuda.is_available() else "cpu"
 print(f"Using device: {DEVICE}")
