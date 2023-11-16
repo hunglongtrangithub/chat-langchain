@@ -10,6 +10,8 @@ RUN poetry install --no-interaction --no-ansi --no-root --no-directory
 
 COPY ./*.py ./
 
+COPY ./faiss_index ./
+
 RUN poetry install  --no-interaction --no-ansi
 
 CMD exec uvicorn main:app --host 0.0.0.0 --port 8080
