@@ -1,4 +1,5 @@
 """Main entrypoint for the app."""
+
 import asyncio
 from typing import Optional, Union
 from uuid import UUID
