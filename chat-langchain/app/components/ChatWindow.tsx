@@ -116,6 +116,7 @@ export function ChatWindow(props: {
               { human: messageValue, ai: accumulatedMessage },
             ]);
             setIsLoading(false);
+            playMessage(accumulatedMessage);
             return;
           }
           if (msg.event === "data" && msg.data) {
@@ -180,6 +181,15 @@ export function ChatWindow(props: {
     await sendMessage(question);
   };
 
+  const playMessage = async (message: string) => {
+    // Trigger Web Speech API
+    const utterance = new SpeechSynthesisUtterance(message);
+    utterance.lang = "en-US";
+    utterance.pitch = 1;
+    utterance.rate = 1;
+    utterance.volume = 1;
+    speechSynthesis.speak(utterance);
+  }
   return (
     <div className="flex flex-col items-center p-8 rounded grow max-h-full">
       {messages.length > 0 && (
