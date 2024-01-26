@@ -20,9 +20,12 @@ import {
   IconButton,
   InputGroup,
   InputRightElement,
+  InputLeftElement,
   Spinner,
 } from "@chakra-ui/react";
 import { ArrowUpIcon } from "@chakra-ui/icons";
+import { MdMic } from 'react-icons/md';
+
 import { Source } from "./SourceBubble";
 import { apiBaseUrl } from "../utils/constants";
 
@@ -189,7 +192,16 @@ export function ChatWindow(props: {
     utterance.rate = 1;
     utterance.volume = 1;
     speechSynthesis.speak(utterance);
+  };
+
+  const triggerSpeechRecognition = async () => {
+  // If already recording, don't start a new one
+  if (isRecording) {
+    return;
   }
+  // Trigger Web Speech API
+};
+
   return (
     <div className="flex flex-col items-center p-8 rounded grow max-h-full">
       {messages.length > 0 && (
@@ -223,6 +235,19 @@ export function ChatWindow(props: {
         )}
       </div>
       <InputGroup size="md" alignItems={"center"}>
+        <InputLeftElement h="full">
+          <IconButton
+            colorScheme="blue"
+            rounded={"full"}
+            aria-label="Send"
+            icon={isRecording ? <Spinner /> : <MdMic />}
+            type="submit"
+            onClick={(e) => {
+              e.preventDefault();
+              triggerSpeechRecognition();
+            }}
+          />
+        </InputLeftElement>
         <AutoResizeTextarea
           value={input}
           maxRows={5}
