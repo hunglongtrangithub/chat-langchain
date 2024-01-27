@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { EmptyState } from "../components/EmptyState";
 import { ChatMessageBubble, Message } from "../components/ChatMessageBubble";
@@ -24,7 +24,7 @@ import {
   Spinner,
 } from "@chakra-ui/react";
 import { ArrowUpIcon } from "@chakra-ui/icons";
-import { MdMic } from 'react-icons/md';
+import { MdMic, MdStop } from 'react-icons/md';
 
 import { Source } from "./SourceBubble";
 import { apiBaseUrl } from "../utils/constants";
@@ -38,14 +38,14 @@ export function ChatWindow(props: {
   const [messages, setMessages] = useState<Array<Message>>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-
+  const [isRecording, setIsRecording] = useState(false);
   const [chatHistory, setChatHistory] = useState<
     { human: string; ai: string }[]
-  >([]);
+    >([]);
 
   const { placeholder, titleText = "An LLM" } = props;
 
-  const sendMessage = async (message?: string) => {
+  const sendMessage = async (message?: string, playAudio: boolean = false) => {
     if (messageContainerRef.current) {
       messageContainerRef.current.classList.add("grow");
     }
@@ -119,7 +119,9 @@ export function ChatWindow(props: {
               { human: messageValue, ai: accumulatedMessage },
             ]);
             setIsLoading(false);
-            playMessage(accumulatedMessage);
+            if (playAudio) {
+              playMessageAudio(accumulatedMessage);
+            }
             return;
           }
           if (msg.event === "data" && msg.data) {
@@ -184,23 +186,59 @@ export function ChatWindow(props: {
     await sendMessage(question);
   };
 
-  const playMessage = async (message: string) => {
-    // Trigger Web Speech API
+  const playMessageAudio = async (message: string) => {
+    console.log("play message audio");
+    // TODO: Use Whisper to play audio
+    // Trigger web speech API
     const utterance = new SpeechSynthesisUtterance(message);
     utterance.lang = "en-US";
+    utterance.rate = 2;
     utterance.pitch = 1;
-    utterance.rate = 1;
     utterance.volume = 1;
     speechSynthesis.speak(utterance);
+    utterance.onend = () => {
+      console.log("finished speaking");
+    };
   };
 
-  const triggerSpeechRecognition = async () => {
-  // If already recording, don't start a new one
-  if (isRecording) {
-    return;
-  }
-  // Trigger Web Speech API
-};
+  
+  const recorderRef = useRef({
+      audioChunks: [] as Blob[],
+      mediaRecorder: null as MediaRecorder | null,
+
+      start: async function() {
+        console.log("start recording");
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        this.mediaRecorder = new MediaRecorder(stream);
+        this.mediaRecorder.start();
+
+        this.mediaRecorder.addEventListener("dataavailable", (event) => {
+          this.audioChunks.push(event.data);
+        });
+      },
+
+      stop: async function() {
+        console.log("stop recording");
+        if (this.mediaRecorder) {
+          this.mediaRecorder.addEventListener("stop", async () => {
+            const audioBlob = new Blob(this.audioChunks);
+            this.audioChunks = []; // Clear audioChunks after stopping
+            this.mediaRecorder?.stream.getTracks().forEach(track => track.stop()); // Stop all tracks
+            this.mediaRecorder = null; // Reset mediaRecorder after stopping
+            await transcribeAndSendMessage(audioBlob);
+          });
+          this.mediaRecorder.stop();
+
+        }
+      }
+  });
+  
+  const transcribeAndSendMessage = async (audioBlob: Blob) => {
+    console.log("transcribe and send message");
+    // TODO: Use Whisper to transcribe audio to message
+    const userMessage = "transcribed message";
+    await sendMessage(userMessage, true);
+  };
 
   return (
     <div className="flex flex-col items-center p-8 rounded grow max-h-full">
@@ -240,11 +278,17 @@ export function ChatWindow(props: {
             colorScheme="blue"
             rounded={"full"}
             aria-label="Send"
-            icon={isRecording ? <Spinner /> : <MdMic />}
+            icon={isRecording ? <MdStop /> : <MdMic />}
             type="submit"
             onClick={(e) => {
               e.preventDefault();
-              triggerSpeechRecognition();
+              if (isRecording) {
+                setIsRecording(false);
+                recorderRef.current.stop();
+              } else {
+                setIsRecording(true);
+                recorderRef.current.start();
+              }
             }}
           />
         </InputLeftElement>
