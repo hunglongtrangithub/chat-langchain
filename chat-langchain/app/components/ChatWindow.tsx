@@ -43,6 +43,40 @@ export function ChatWindow(props: {
     { human: string; ai: string }[]
     >([]);
 
+  const recorderRef = useRef({
+      audioChunks: [] as Blob[],
+      mediaRecorder: null as MediaRecorder | null,
+
+      start: async function() {
+        if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+          return Promise.reject(new Error('mediaDevices API or getUserMedia method is not supported in this browser.'));
+        }
+        console.log("start recording");
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        this.mediaRecorder = new MediaRecorder(stream);
+        
+        this.mediaRecorder.ondataavailable = (event) => {
+          this.audioChunks.push(event.data);
+          console.log("Chunk length: ", this.audioChunks.length);
+        };
+        this.mediaRecorder.start(10); // FIXME: This is a temporary fix to prevent the first chunk from being empty
+      },
+
+      stop: async function() {
+        console.log("stop recording");
+        if (this.mediaRecorder) {
+          this.mediaRecorder.onstop = async () => {
+            const audioBlob = new Blob(this.audioChunks, { type: "audio/mp3" });
+            this.mediaRecorder?.stream.getTracks().forEach(track => track.stop()); // Stop all tracks
+            this.audioChunks = []; // Clear audioChunks after stopping
+            this.mediaRecorder = null; // Reset mediaRecorder after stopping
+            await transcribeAndSendMessage(audioBlob);
+          };
+          this.mediaRecorder.stop();
+        }
+      }
+  });
+
   const { placeholder, titleText = "An LLM" } = props;
 
   const sendMessage = async (message?: string, playAudio: boolean = false) => {
@@ -187,57 +221,45 @@ export function ChatWindow(props: {
   };
 
   const playMessageAudio = async (message: string) => {
-    console.log("play message audio");
-    // TODO: Use Whisper to play audio
-    // Trigger web speech API
-    const utterance = new SpeechSynthesisUtterance(message);
-    utterance.lang = "en-US";
-    utterance.rate = 2;
-    utterance.pitch = 1;
-    utterance.volume = 1;
-    speechSynthesis.speak(utterance);
-    utterance.onend = () => {
-      console.log("finished speaking");
-    };
+    console.log("play message audio for ", message);
+    
+    const audioResponse = await fetch(apiBaseUrl + "/text_to_speech", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, conversationId }),
+    });
+
+    if (!audioResponse.ok) {
+      console.error('Failed to fetch audio');
+      return;
+    }
+
+    const audioBlob = await audioResponse.blob();
+    const audioUrl = URL.createObjectURL(audioBlob);
+    const audio = new Audio(audioUrl);
+    audio.play();
   };
 
-  
-  const recorderRef = useRef({
-      audioChunks: [] as Blob[],
-      mediaRecorder: null as MediaRecorder | null,
-
-      start: async function() {
-        console.log("start recording");
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        this.mediaRecorder = new MediaRecorder(stream);
-        this.mediaRecorder.start();
-
-        this.mediaRecorder.addEventListener("dataavailable", (event) => {
-          this.audioChunks.push(event.data);
-        });
-      },
-
-      stop: async function() {
-        console.log("stop recording");
-        if (this.mediaRecorder) {
-          this.mediaRecorder.addEventListener("stop", async () => {
-            const audioBlob = new Blob(this.audioChunks);
-            this.audioChunks = []; // Clear audioChunks after stopping
-            this.mediaRecorder?.stream.getTracks().forEach(track => track.stop()); // Stop all tracks
-            this.mediaRecorder = null; // Reset mediaRecorder after stopping
-            await transcribeAndSendMessage(audioBlob);
-          });
-          this.mediaRecorder.stop();
-
-        }
-      }
-  });
-  
   const transcribeAndSendMessage = async (audioBlob: Blob) => {
     console.log("transcribe and send message");
-    // TODO: Use Whisper to transcribe audio to message
-    const userMessage = "transcribed message";
-    await sendMessage(userMessage, true);
+
+    const formData = new FormData();
+    formData.append("file", audioBlob, `${conversationId}.mp3`)
+    formData.append("conversationId", conversationId);
+
+    const response = await fetch(apiBaseUrl + "/transcribe_audio", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log(data);
+      const userMessage = data.transcript;
+      await sendMessage(userMessage, true);
+    } else {
+      throw new Error(`Server error: ${response.statusText}`);
+    }
   };
 
   return (
@@ -296,6 +318,7 @@ export function ChatWindow(props: {
           value={input}
           maxRows={5}
           marginRight={"56px"}
+          marginLeft={"56px"}
           placeholder="What is LangChain Expression Language?"
           textColor={"white"}
           borderColor={"rgb(58, 58, 61)"}

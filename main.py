@@ -4,15 +4,24 @@ from typing import Optional, Union
 from uuid import UUID
 
 import langsmith
-from fastapi import FastAPI
+from fastapi import FastAPI, File, UploadFile, Form
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from langserve import add_routes
 from langsmith import Client
+from openai import OpenAI
 from pydantic import BaseModel
+
+from pathlib import Path
+from dotenv import load_dotenv
+import os
 
 from chain import ChatRequest, answer_chain
 
+load_dotenv()
+
 client = Client()
+openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = FastAPI()
 app.add_middleware(
@@ -104,6 +113,49 @@ async def get_trace(body: GetTraceBody):
             "code": 400,
         }
     return await aget_trace_url(str(run_id))
+
+
+@app.post("/transcribe_audio")
+async def transcribe_audio(
+    file: UploadFile = File(...), conversationId: str = Form(...)
+):
+    upload_folder = Path(__file__).resolve().parent / "audio"
+    upload_folder.mkdir(exist_ok=True)
+    file_path = upload_folder / file.filename
+
+    with open(file_path, "wb") as f:
+        f.write(file.file.read())
+    file_data = open(file_path, "rb")
+
+    transcript = openai_client.audio.transcriptions.create(
+        model="whisper-1",
+        file=file_data,
+        response_format="text",
+    )
+
+    file_data.close()
+    file_path.unlink()
+
+    return {"transcript": transcript, "conversationId": conversationId}
+
+
+class MessageRequest(BaseModel):
+    message: str
+    conversationId: str
+
+
+@app.post("/text_to_speech")
+async def text_to_speech(request: MessageRequest):
+    text = request.message
+    speech_file_path = Path(__file__).parent / "speech.mp3"
+    response = openai_client.audio.speech.create(
+        model="tts-1",
+        voice="nova",
+        input=text,
+    )
+    response.write_to_file(speech_file_path)
+
+    return FileResponse(speech_file_path, filename="speech.mp3")
 
 
 if __name__ == "__main__":
