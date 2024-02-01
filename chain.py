@@ -2,7 +2,6 @@ import os
 from operator import itemgetter
 from typing import Dict, List, Optional, Sequence
 
-import weaviate
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from langchain.chat_models import ChatOpenAI
@@ -24,8 +23,6 @@ from langchain.schema.runnable import (
 from langchain.vectorstores.faiss import FAISS
 from langsmith import Client
 from pydantic import BaseModel
-
-from constants import WEAVIATE_DOCS_INDEX_NAME
 
 RESPONSE_TEMPLATE = """\
 You are an expert programmer and problem-solver, tasked with answering any question \
