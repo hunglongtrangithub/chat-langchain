@@ -24,6 +24,7 @@ from langchain.vectorstores.faiss import FAISS
 from langsmith import Client
 from pydantic import BaseModel
 
+
 RESPONSE_TEMPLATE = """\
 You are an expert programmer and problem-solver, tasked with answering any question \
 about Langchain.

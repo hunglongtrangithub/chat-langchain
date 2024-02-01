@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { EmptyState } from "../components/EmptyState";
 import { ChatMessageBubble, Message } from "../components/ChatMessageBubble";
@@ -20,9 +20,12 @@ import {
   IconButton,
   InputGroup,
   InputRightElement,
+  InputLeftElement,
   Spinner,
 } from "@chakra-ui/react";
 import { ArrowUpIcon } from "@chakra-ui/icons";
+import { MdMic, MdStop } from 'react-icons/md';
+
 import { Source } from "./SourceBubble";
 import { apiBaseUrl } from "../utils/constants";
 
@@ -35,14 +38,48 @@ export function ChatWindow(props: {
   const [messages, setMessages] = useState<Array<Message>>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-
+  const [isRecording, setIsRecording] = useState(false);
   const [chatHistory, setChatHistory] = useState<
     { human: string; ai: string }[]
-  >([]);
+    >([]);
+
+  const recorderRef = useRef({
+      audioChunks: [] as Blob[],
+      mediaRecorder: null as MediaRecorder | null,
+
+      start: async function() {
+        if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+          return Promise.reject(new Error('mediaDevices API or getUserMedia method is not supported in this browser.'));
+        }
+        console.log("start recording");
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        this.mediaRecorder = new MediaRecorder(stream);
+        
+        this.mediaRecorder.ondataavailable = (event) => {
+          this.audioChunks.push(event.data);
+          console.log("Chunk length: ", this.audioChunks.length);
+        };
+        this.mediaRecorder.start(10); // FIXME: This is a temporary fix to prevent the first chunk from being empty
+      },
+
+      stop: async function() {
+        console.log("stop recording");
+        if (this.mediaRecorder) {
+          this.mediaRecorder.onstop = async () => {
+            const audioBlob = new Blob(this.audioChunks, { type: "audio/mp3" });
+            this.mediaRecorder?.stream.getTracks().forEach(track => track.stop()); // Stop all tracks
+            this.audioChunks = []; // Clear audioChunks after stopping
+            this.mediaRecorder = null; // Reset mediaRecorder after stopping
+            await transcribeAndSendMessage(audioBlob);
+          };
+          this.mediaRecorder.stop();
+        }
+      }
+  });
 
   const { placeholder, titleText = "An LLM" } = props;
 
-  const sendMessage = async (message?: string) => {
+  const sendMessage = async (message?: string, playAudio: boolean = false) => {
     if (messageContainerRef.current) {
       messageContainerRef.current.classList.add("grow");
     }
@@ -116,6 +153,9 @@ export function ChatWindow(props: {
               { human: messageValue, ai: accumulatedMessage },
             ]);
             setIsLoading(false);
+            if (playAudio) {
+              playMessageAudio(accumulatedMessage);
+            }
             return;
           }
           if (msg.event === "data" && msg.data) {
@@ -180,6 +220,48 @@ export function ChatWindow(props: {
     await sendMessage(question);
   };
 
+  const playMessageAudio = async (message: string) => {
+    console.log("play message audio for ", message);
+    
+    const audioResponse = await fetch(apiBaseUrl + "/text_to_speech", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, conversationId }),
+    });
+
+    if (!audioResponse.ok) {
+      console.error('Failed to fetch audio');
+      return;
+    }
+
+    const audioBlob = await audioResponse.blob();
+    const audioUrl = URL.createObjectURL(audioBlob);
+    const audio = new Audio(audioUrl);
+    audio.play();
+  };
+
+  const transcribeAndSendMessage = async (audioBlob: Blob) => {
+    console.log("transcribe and send message");
+
+    const formData = new FormData();
+    formData.append("file", audioBlob, `${conversationId}.mp3`)
+    formData.append("conversationId", conversationId);
+
+    const response = await fetch(apiBaseUrl + "/transcribe_audio", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log(data);
+      const userMessage = data.transcript;
+      await sendMessage(userMessage, true);
+    } else {
+      throw new Error(`Server error: ${response.statusText}`);
+    }
+  };
+
   return (
     <div className="flex flex-col items-center p-8 rounded grow max-h-full">
       {messages.length > 0 && (
@@ -213,10 +295,30 @@ export function ChatWindow(props: {
         )}
       </div>
       <InputGroup size="md" alignItems={"center"}>
+        <InputLeftElement h="full">
+          <IconButton
+            colorScheme="blue"
+            rounded={"full"}
+            aria-label="Send"
+            icon={isRecording ? <MdStop /> : <MdMic />}
+            type="submit"
+            onClick={(e) => {
+              e.preventDefault();
+              if (isRecording) {
+                setIsRecording(false);
+                recorderRef.current.stop();
+              } else {
+                setIsRecording(true);
+                recorderRef.current.start();
+              }
+            }}
+          />
+        </InputLeftElement>
         <AutoResizeTextarea
           value={input}
           maxRows={5}
           marginRight={"56px"}
+          marginLeft={"56px"}
           placeholder="What is LangChain Expression Language?"
           textColor={"white"}
           borderColor={"rgb(58, 58, 61)"}

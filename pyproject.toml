@@ -7,7 +7,7 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-openai = "^0.28.0"
+openai = "^1.10.0"
 fastapi = "^0.103.1"
 pydantic = "1.10"
 langchain = "^0.0.333"
@@ -18,7 +18,7 @@ psycopg2 = "^2.9.7"
 lxml = "^4.9.3"
 langserve = {extras = ["server"], version = "^0.0.39"}
 voyageai = "^0.1.4"
-
+python-dotenv = "^1.0.1"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.9.1"
