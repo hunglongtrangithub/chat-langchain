@@ -68,19 +68,6 @@ Follow Up Input: {question}
 Standalone Question:"""
 
 
-client = Client()
-
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-)
-
-
 class ChatRequest(BaseModel):
     question: str
     chat_history: Optional[List[Dict[str, str]]]
