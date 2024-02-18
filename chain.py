@@ -2,8 +2,6 @@ import os
 from operator import itemgetter
 from typing import Dict, List, Optional, Sequence
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.embeddings.voyageai import VoyageEmbeddings
@@ -21,7 +19,6 @@ from langchain.schema.runnable import (
     RunnableMap,
 )
 from langchain.vectorstores.faiss import FAISS
-from langsmith import Client
 from pydantic import BaseModel
 
 
