@@ -5,7 +5,7 @@ from typing import Optional, Union
 from uuid import UUID
 
 import langsmith
-from fastapi import FastAPI, File, UploadFile, Form
+from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from langserve import add_routes
@@ -146,7 +146,7 @@ class MessageRequest(BaseModel):
 
 
 @app.post("/text_to_speech")
-async def text_to_speech(request: MessageRequest):
+async def text_to_speech(request: MessageRequest, background_tasks: BackgroundTasks):
     text = request.message
     speech_file_path = Path(__file__).parent / "speech.mp3"
     response = openai_client.audio.speech.create(
@@ -155,6 +155,16 @@ async def text_to_speech(request: MessageRequest):
         input=text,
     )
     response.write_to_file(speech_file_path)
+
+    async def delete_file_after_delay(file_path: Path, delay: int = 30):
+        # Wait for the delay
+        await asyncio.sleep(delay)
+
+        # Delete the file
+        os.remove(file_path)
+
+    # Add a background task to delete the file after a delay
+    background_tasks.add_task(delete_file_after_delay, speech_file_path)
 
     return FileResponse(speech_file_path, filename="speech.mp3")
 

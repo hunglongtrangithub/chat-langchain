@@ -2,8 +2,6 @@ import os
 from operator import itemgetter
 from typing import Dict, List, Optional, Sequence
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.embeddings.voyageai import VoyageEmbeddings
@@ -21,7 +19,6 @@ from langchain.schema.runnable import (
     RunnableMap,
 )
 from langchain.vectorstores.faiss import FAISS
-from langsmith import Client
 from pydantic import BaseModel
 
 
@@ -66,19 +63,6 @@ Chat History:
 {chat_history}
 Follow Up Input: {question}
 Standalone Question:"""
-
-
-client = Client()
-
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-)
 
 
 class ChatRequest(BaseModel):

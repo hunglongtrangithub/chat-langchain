@@ -143,3 +143,6 @@ bin/
 pyvenv.cfg
 node_modules/
 .envrc
+
+# Ignore generated speech file
+speech.mp3
