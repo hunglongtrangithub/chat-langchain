@@ -1,10 +1,12 @@
+from llm_llama.model_generator.llm_pipeline import load_fine_tuned_model
+from langchain.llms import HuggingFacePipeline
 from torch import cuda, bfloat16
 import transformers
 import torch
 
 
 DEVICE = f"cuda:{cuda.current_device()}" if cuda.is_available() else "cpu"
-print(f"Using device: {DEVICE}")
+print(f"Using device: {DEVICE}. Number of GPUs: {cuda.device_count()}")
 
 
 def get_pipeline(model_id):
@@ -20,11 +22,10 @@ def get_pipeline(model_id):
         if torch.cuda.is_available()
         else None
     )
-    model_config = transformers.AutoConfig.from_pretrained(model_id)
     model = transformers.AutoModelForCausalLM.from_pretrained(
         model_id,
         trust_remote_code=True,
-        config=model_config,
+        config=transformers.AutoConfig.from_pretrained(model_id),
         quantization_config=bnb_config,
         device_map="auto",
     )
@@ -43,9 +44,21 @@ def get_pipeline(model_id):
     return text_generator
 
 
+model, tokenizer = load_fine_tuned_model(
+    path="llm_llama/Llama-2-7b-chat_peft_128",
+    peft_model=1,
+)
+pipeline = transformers.pipeline(
+    model=model,
+    tokenizer=tokenizer,
+    return_full_text=True,
+    task="text-generation",
+)
+llm = HuggingFacePipeline(pipeline=pipeline)
+# MODEL_ID = "meta-llama/Llama-2-7b-chat-hf"
+# llm = HuggingFacePipeline(pipeline=get_pipeline(MODEL_ID))
+
+
 if __name__ == "__main__":
-    MODEL_ID = "meta-llama/Llama-2-7b-chat-hf"
-    from langchain.llms import HuggingFacePipeline
-    llm = HuggingFacePipeline(pipeline=get_pipeline(MODEL_ID))
     response = llm.invoke("Hello")
     print(response)

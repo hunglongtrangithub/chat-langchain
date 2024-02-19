@@ -146,3 +146,6 @@ node_modules/
 
 # Ignore generated speech file
 speech.mp3
+
+# ignore model directory
+llm/llm_llama/Llama-2-7b-chat_peft_128
