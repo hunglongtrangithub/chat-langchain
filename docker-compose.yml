@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./chat-langchain
+      dockerfile: Dockerfile
+    container_name: chat-langchain-frontend
+    
+    working_dir: /app
+    command: yarn dev
+    volumes:
+      - ./chat-langchain:/app
+    
+    ports:
+      - 3000:3000
+    environment:
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: chat-langchain-backend
+    
+    working_dir: /app
+    command: uvicorn main:app --host 0.0.0.0 --port 8080 --reload
+    volumes:
+      - .:/app
+
+    ports:
+      - 8080:8080
+    environment:
+      - HF_TOKEN=${HF_TOKEN}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
