@@ -31,9 +31,4 @@ COPY ./faiss_index ./faiss_index
 
 RUN poetry install  --no-interaction --no-ansi
 
-ENV OPENAI_API_KEY="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"
-ENV HUGGINGFACE_TOKEN="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"
-
-RUN huggingface-cli login --token $HUGGINGFACE_TOKEN
-
 CMD exec uvicorn main:app --host 0.0.0.0 --port 8080
