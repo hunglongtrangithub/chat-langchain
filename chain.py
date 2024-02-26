@@ -2,6 +2,8 @@ import os
 from operator import itemgetter
 from typing import Dict, List, Optional, Sequence
 
+from llm_without_streaming import llm
+
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.embeddings.voyageai import VoyageEmbeddings
@@ -166,11 +168,11 @@ def create_chain(
     )
 
 
-llm = ChatOpenAI(
-    model="gpt-3.5-turbo-16k",
-    streaming=True,
-    temperature=0,
-)
+# llm = ChatOpenAI(
+#     model="gpt-3.5-turbo-16k",
+#     streaming=True,
+#     temperature=0,
+# )
 retriever = get_retriever()
 answer_chain = create_chain(
     llm,
