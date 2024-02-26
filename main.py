@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from langserve import add_routes
 from langsmith import Client
-from openai import OpenAI
+
 from pydantic import BaseModel
 
 from pathlib import Path
@@ -19,10 +19,13 @@ import os
 
 from chain import ChatRequest, answer_chain
 
+from tts import tts
+from transcription import transcribe
+
+# TODO: implement env var checking and error handling (add schema + fail fast)
 load_dotenv()
 
 client = Client()
-openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = FastAPI()
 app.add_middleware(
@@ -38,49 +41,6 @@ app.add_middleware(
 add_routes(
     app, answer_chain, path="/chat", input_type=ChatRequest, config_keys=["metadata"]
 )
-
-
-class SendFeedbackBody(BaseModel):
-    run_id: UUID
-    key: str = "user_score"
-
-    score: Union[float, int, bool, None] = None
-    feedback_id: Optional[UUID] = None
-    comment: Optional[str] = None
-
-
-@app.post("/feedback")
-async def send_feedback(body: SendFeedbackBody):
-    client.create_feedback(
-        body.run_id,
-        body.key,
-        score=body.score,
-        comment=body.comment,
-        feedback_id=body.feedback_id,
-    )
-    return {"result": "posted feedback successfully", "code": 200}
-
-
-class UpdateFeedbackBody(BaseModel):
-    feedback_id: UUID
-    score: Union[float, int, bool, None] = None
-    comment: Optional[str] = None
-
-
-@app.patch("/feedback")
-async def update_feedback(body: UpdateFeedbackBody):
-    feedback_id = body.feedback_id
-    if feedback_id is None:
-        return {
-            "result": "No feedback ID provided",
-            "code": 400,
-        }
-    client.update_feedback(
-        feedback_id,
-        score=body.score,
-        comment=body.comment,
-    )
-    return {"result": "patched feedback successfully", "code": 200}
 
 
 # TODO: Update when async API is available
@@ -105,6 +65,11 @@ class GetTraceBody(BaseModel):
     run_id: UUID
 
 
+class MessageRequest(BaseModel):
+    message: str
+    conversationId: str
+
+
 @app.post("/get_trace")
 async def get_trace(body: GetTraceBody):
     run_id = body.run_id
@@ -120,53 +85,45 @@ async def get_trace(body: GetTraceBody):
 async def transcribe_audio(
     file: UploadFile = File(...), conversationId: str = Form(...)
 ):
+    file_name = file.filename
+    # save to local file
     upload_folder = Path(__file__).resolve().parent / "audio"
     upload_folder.mkdir(exist_ok=True)
-    file_path = upload_folder / file.filename
+    file_path = upload_folder / file_name
+    file_path = str(file_path)
 
     with open(file_path, "wb") as f:
         f.write(file.file.read())
-    file_data = open(file_path, "rb")
 
-    transcript = openai_client.audio.transcriptions.create(
-        model="whisper-1",
-        file=file_data,
-        response_format="text",
-    )
-
-    file_data.close()
-    file_path.unlink()
+    transcript = transcribe(audio_path=file_path)
 
     return {"transcript": transcript, "conversationId": conversationId}
 
 
-class MessageRequest(BaseModel):
-    message: str
-    conversationId: str
-
-
 @app.post("/text_to_speech")
-async def text_to_speech(request: MessageRequest, background_tasks: BackgroundTasks):
+async def text_to_speech(
+    request: MessageRequest,
+    # background_tasks: BackgroundTasks,
+):
     text = request.message
-    speech_file_path = Path(__file__).parent / "speech.mp3"
-    response = openai_client.audio.speech.create(
-        model="tts-1",
-        voice="nova",
-        input=text,
-    )
-    response.write_to_file(speech_file_path)
+    speech_file_name = request.conversationId + ".mp3"
+    upload_folder = Path(__file__).resolve().parent / "audio"
+    upload_folder.mkdir(exist_ok=True)
+    speech_file_path = upload_folder / speech_file_name
 
-    async def delete_file_after_delay(file_path: Path, delay: int = 30):
-        # Wait for the delay
-        await asyncio.sleep(delay)
+    tts(text=text, file_path=speech_file_path)
 
-        # Delete the file
-        os.remove(file_path)
+    # async def delete_file_after_delay(file_path: Path, delay: int = 30):
+    #     # Wait for the delay
+    #     await asyncio.sleep(delay)
 
-    # Add a background task to delete the file after a delay
-    background_tasks.add_task(delete_file_after_delay, speech_file_path)
+    #     # Delete the file
+    #     os.remove(file_path)
 
-    return FileResponse(speech_file_path, filename="speech.mp3")
+    # # Add a background task to delete the file after a delay
+    # background_tasks.add_task(delete_file_after_delay, speech_file_path)
+
+    return FileResponse(speech_file_path)
 
 
 if __name__ == "__main__":
