@@ -1,43 +1,55 @@
 version: '3.8'
 
 services:
-  frontend:
+  chat-frontend:
     build:
       context: ./chat-langchain
       dockerfile: Dockerfile
-    container_name: chat-langchain-frontend
+    container_name: chat-frontend
     
     working_dir: /app
     command: yarn dev
     volumes:
       - ./chat-langchain:/app
+      - /app/node_modules
     
     ports:
       - 3000:3000
     environment:
       - NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
 
-  backend:
+  chat-backend:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: chat-langchain-backend
+    container_name: chat-backend
     
     working_dir: /app
-    command: uvicorn main:app --host 0.0.0.0 --port 8080 --reload
+    entrypoint: /bin/sh -c
+    command: >
+      "./expect.exp &&
+      uvicorn main:app --host 0.0.0.0 --port 8080 --reload"
+    
     volumes:
       - .:/app
+      - ./faiss_index:/app/faiss_index
+      - ./llm:/app/llm
 
     ports:
       - 8080:8080
     environment:
       - HF_TOKEN=${HF_TOKEN}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      
+  # whisper-service:
+  #   image: r8.im/vaibhavs10/incredibly-fast-whisper@sha256:3ab86df6c8f54c11309d4d1f930ac292bad43ace52d10c80d87eb258b3c9f79c
+  #   ports:
+  #     - 5000:5000
     
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              count: 1
+              count: 8
               capabilities: [gpu]
