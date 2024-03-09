@@ -5,6 +5,7 @@ from transformers import (
     pipeline,
 )
 from threading import Thread
+from typing import Dict, Generator, Optional, Union
 
 
 class CustomModel:
@@ -15,16 +16,20 @@ class CustomModel:
         "temperature": 0.1,
     }
 
-    def __init__(self, checkpoint: str, generation_kwargs: dict = None):
+    def __init__(
+        self,
+        checkpoint: str,
+        generation_kwargs: Optional[Dict[str, Union[int, bool, float]]] = None,
+    ):
         self.tokenizer = AutoTokenizer.from_pretrained(checkpoint)
         self.model = AutoModelForCausalLM.from_pretrained(checkpoint)
         self.pipe = pipeline("text-generation", checkpoint)
         self.generation_kwargs = generation_kwargs or self.default_generation_kwargs
 
-    def invoke(self, input_text: str):
+    def invoke(self, input_text: str) -> str:
         return self.pipe(input_text, **self.generation_kwargs)[0]["generated_text"]
 
-    def stream(self, input_text: str):
+    def stream(self, input_text: str) -> Generator[str, None, None]:
         streamer = TextIteratorStreamer(
             self.tokenizer, skip_prompt=True, skip_special_tokens=True
         )
@@ -61,19 +66,20 @@ class CustomChatModel:
     def __init__(
         self,
         checkpoint: str,
-        system_prompt: str = None,
-        generation_kwargs: dict = None,
+        system_prompt: Optional[str] = None,
+        generation_kwargs: Optional[Dict[str, Union[int, bool, float]]] = None,
     ):
         self.tokenizer = AutoTokenizer.from_pretrained(checkpoint)
         self.model = AutoModelForCausalLM.from_pretrained(checkpoint)
         self.pipe = pipeline("text-generation", checkpoint)
 
         self.chat_history = []
-        if system_prompt is not None:
+        self.system_prompt = system_prompt  # not supposed to change after init
+        if self.system_prompt is not None:
             self.chat_history.append({"role": "system", "content": system_prompt})
         self.generation_kwargs = generation_kwargs or self.default_generation_kwargs
 
-    def invoke(self, input_text: str):
+    def invoke(self, input_text: str) -> str:
         self.chat_history.append({"role": "user", "content": input_text})
         response = self.pipe(self.chat_history, **self.generation_kwargs)[0][
             "generated_text"
@@ -81,7 +87,7 @@ class CustomChatModel:
         self.chat_history.append({"role": "assistant", "content": response})
         return response
 
-    def stream(self, input_text: str):
+    def stream(self, input_text: str) -> Generator[str, None, None]:
         streamer = TextIteratorStreamer(
             self.tokenizer, skip_prompt=True, skip_special_tokens=True
         )
