@@ -57,7 +57,9 @@ TEMPLATE_STRING = """{% for message in messages %}{% if message['human'] is defi
 
 
 embeddings = OpenAIEmbeddings(chunk_size=200)
-vectorstore = FAISS.load_local("faiss_index", embeddings=embeddings)
+vectorstore = FAISS.load_local(
+    "faiss_index", embeddings=embeddings, allow_dangerous_deserialization=True
+)
 retriever = vectorstore.as_retriever(search_kwargs=dict(k=6))
 llm = CustomModel("meta-llama/Llama-2-7b-hf")
 chat_llm = CustomChatModel("meta-llama/Llama-2-7b-hf")
