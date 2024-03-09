@@ -1,16 +1,18 @@
 """Main entrypoint for the app."""
+
 import asyncio
 from typing import Optional, Union
 from uuid import UUID
 
 import langsmith
 from fastapi import FastAPI, File, UploadFile, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from langserve import add_routes
 from langsmith import Client
 from openai import OpenAI
 from pydantic import BaseModel
+import json
 
 from pathlib import Path
 from dotenv import load_dotenv
@@ -37,6 +39,15 @@ app.add_middleware(
 add_routes(
     app, answer_chain, path="/chat", input_type=ChatRequest, config_keys=["metadata"]
 )
+
+
+# @app.post("/chat/stream_log")
+# async def chat(request: ChatRequest):
+#     async def log_messages():
+#         async for message in answer_chain.astream_log(request):
+#             yield f"data: {json.dumps(message)}\n\n"
+
+#     return StreamingResponse(log_messages(), media_type="text/event-stream")
 
 
 class SendFeedbackBody(BaseModel):
