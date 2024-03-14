@@ -1,5 +1,8 @@
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent))
 import asyncio
-from ..chain import answer_chain
+from chain import answer_chain
 from langchain.schema.runnable import RunnableLambda
 
 # from transformers import AutoTokenizer, AutoModelForCausalLM, TextStreamer, pipeline
