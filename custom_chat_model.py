@@ -4,13 +4,15 @@ from transformers import (
     TextIteratorStreamer,
     pipeline,
 )
+from openai import OpenAI
 from threading import Thread
-from typing import Dict, Generator, Optional, Union
+from typing import Dict, Generator, Optional, Union, List
+from pydantic import BaseModel, root_validator
 
 
 class CustomModel:
     default_generation_kwargs = {
-        "max_new_tokens": 1024,
+        "max_new_tokens": 512,
         "num_return_sequences": 1,
         "do_sample": True,
         "temperature": 0.1,
@@ -27,14 +29,29 @@ class CustomModel:
         self.generation_kwargs = generation_kwargs or self.default_generation_kwargs
 
     def invoke(self, input_text: str) -> str:
-        return self.pipe(input_text, **self.generation_kwargs)[0]["generated_text"]
+        result = self.pipe(
+            input_text,
+            **self.generation_kwargs,
+            # truncation=True,
+            # max_length=512,
+        )  # type: ignore
+        response = result[0]["generated_text"]  # type: ignore
+        return response  # type: ignore
 
     def stream(self, input_text: str) -> Generator[str, None, None]:
         streamer = TextIteratorStreamer(
-            self.tokenizer, skip_prompt=True, skip_special_tokens=True
+            self.tokenizer,
+            skip_prompt=True,
+            skip_special_tokens=True,
         )
-        inputs = self.tokenizer(input_text, return_tensors="pt")
-        print(inputs)
+        inputs = self.tokenizer(
+            input_text,
+            return_tensors="pt",
+            # truncation=True,
+            # max_length=512,
+        )
+        # truncate inputs to max_length of model
+        # print(inputs)
         thread = Thread(
             target=self.model.generate,
             kwargs={
@@ -53,15 +70,30 @@ class CustomModel:
         return generator()
 
 
+class Message(BaseModel):
+    role: str
+    content: str
+
+    @root_validator(pre=True)
+    def validate_role(cls, values):
+        role = values.get("role")
+        if role not in {"user", "assistant", "system"}:
+            raise ValueError("role must be either 'system', user' or 'assistant'")
+        return values
+
+
 class CustomChatModel:
     default_generation_kwargs = {
-        "max_new_tokens": 1024,
+        # "truncation": True,
+        # "max_length": 512,
+        "max_new_tokens": 512,
         "num_return_sequences": 1,
         "do_sample": True,
         "temperature": 0.7,
         "top_k": 50,
         "top_p": 0.95,
     }
+    default_system_prompt = "You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe. Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature.\n\nIf a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information."
 
     def __init__(
         self,
@@ -73,30 +105,38 @@ class CustomChatModel:
         self.model = AutoModelForCausalLM.from_pretrained(checkpoint)
         self.pipe = pipeline("text-generation", checkpoint)
 
-        self.chat_history = []
-        self.system_prompt = system_prompt  # not supposed to change after init
-        if self.system_prompt is not None:
-            self.chat_history.append({"role": "system", "content": system_prompt})
+        self.system_prompt = system_prompt or self.default_system_prompt
         self.generation_kwargs = generation_kwargs or self.default_generation_kwargs
 
-    def invoke(self, input_text: str) -> str:
-        self.chat_history.append({"role": "user", "content": input_text})
-        response = self.pipe(self.chat_history, **self.generation_kwargs)[0][
-            "generated_text"
-        ][-1]["content"]
-        self.chat_history.append({"role": "assistant", "content": response})
-        return response
+    def invoke(self, current_conversation: List[Dict[str, str]]) -> str:
+        chat_history = [
+            {"role": "system", "content": self.system_prompt}
+        ] + current_conversation
+        result = self.pipe(
+            chat_history,
+            **self.generation_kwargs,
+            # truncation=True,
+            # max_length=512,
+        )  # type: ignore
+        response = result[0]["generated_text"][-1]["content"] # type: ignore
+        return response  # type: ignore
 
-    def stream(self, input_text: str) -> Generator[str, None, None]:
+    def stream(
+        self, current_conversation: List[Dict[str, str]]
+    ) -> Generator[str, None, None]:
+        chat_history = [
+            {"role": "system", "content": self.system_prompt}
+        ] + current_conversation
         streamer = TextIteratorStreamer(
             self.tokenizer, skip_prompt=True, skip_special_tokens=True
         )
-        self.chat_history.append({"role": "user", "content": input_text})
         tokenized_chat_history = self.tokenizer.apply_chat_template(
-            self.chat_history,
+            chat_history,
             tokenize=True,
             add_generation_prompt=True,
             return_tensors="pt",
+            # truncation=True,
+            # max_length=512,
         )
 
         thread = Thread(
@@ -110,11 +150,25 @@ class CustomChatModel:
         thread.start()
 
         def generator():
-            full_response = ""
             for new_text in streamer:
-                full_response += new_text
                 yield new_text
-            self.chat_history.append({"role": "assistant", "content": full_response})
             thread.join()
 
         return generator()
+
+    # def __call__(
+    #     self, message_list: List[Message], stream=False
+    # ) -> Union[str, Generator[str, None, None]]:
+    #     # unpack the message_list into a list of dictionaries
+    #     current_conversation = [
+    #         {"role": message.role, "content": message.content}
+    #         for message in message_list
+    #     ]
+    #     if current_conversation[-1]["role"] != "user":
+    #         raise ValueError(
+    #             "The last message in the conversation must be from the user"
+    #         )
+    #     if stream:
+    #         return self.stream(current_conversation)
+    #     else:
+    #         return self.invoke(current_conversation)
