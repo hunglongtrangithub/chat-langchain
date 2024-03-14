@@ -156,19 +156,19 @@ class CustomChatModel:
 
         return generator()
 
-    # def __call__(
-    #     self, message_list: List[Message], stream=False
-    # ) -> Union[str, Generator[str, None, None]]:
-    #     # unpack the message_list into a list of dictionaries
-    #     current_conversation = [
-    #         {"role": message.role, "content": message.content}
-    #         for message in message_list
-    #     ]
-    #     if current_conversation[-1]["role"] != "user":
-    #         raise ValueError(
-    #             "The last message in the conversation must be from the user"
-    #         )
-    #     if stream:
-    #         return self.stream(current_conversation)
-    #     else:
-    #         return self.invoke(current_conversation)
+    def __call__(
+        self, message_list: List[Message], stream=False
+    ) -> Union[str, Generator[str, None, None]]:
+        # unpack the message_list into a list of dictionaries
+        current_conversation = [
+            {"role": message.role, "content": message.content}
+            for message in message_list
+        ]
+        if current_conversation[-1]["role"] != "user":
+            raise ValueError(
+                "The last message in the conversation must be from the user"
+            )
+        if stream:
+            return self.stream(current_conversation)
+        else:
+            return self.invoke(current_conversation)
