@@ -172,3 +172,79 @@ class CustomChatModel:
             return self.stream(current_conversation)
         else:
             return self.invoke(current_conversation)
+        
+
+class CustomChatOpenAI:
+    def __init__(self, model_name: str = "gpt-3.5-turbo"):
+        self.client = OpenAI()
+        self.model_name = model_name
+        
+    def invoke(self, current_conversation: List[Dict[str, str]]) -> str:
+        completion = self.client.chat.completions.create(
+            model=self.model_name,
+            messages=current_conversation,  # type: ignore
+        )
+        return completion.choices[0].message.content  # type: ignore
+
+    def stream(
+        self, current_conversation: List[Dict[str, str]]
+    ) -> Generator[str, None, None]:
+        completion = self.client.chat.completions.create(
+            model=self.model_name,
+            messages=current_conversation,  # type: ignore
+            stream=True,
+        )
+        for chunk in completion:
+            token = chunk.choices[0].delta.content
+            if token:
+                yield token
+
+    def __call__(
+        self, message_list: List[Message], stream=False
+    ) -> Union[str, Generator[str, None, None]]:
+        # unpack the message_list into a list of dictionaries
+        current_conversation = [
+            {"role": message.role, "content": message.content}
+            for message in message_list
+        ]
+        if current_conversation[-1]["role"] != "user":
+            raise ValueError(
+                "The last message in the conversation must be from the user"
+            )
+        if stream:
+            return self.stream(current_conversation)
+        else:
+            return self.invoke(current_conversation)
+
+
+class CustomOpenAI:
+    def __init__(self, model_name: str = "gpt-3.5-turbo"):
+        self.client = OpenAI()
+        self.model_name = model_name
+
+    def invoke(self, input_text: str) -> str:
+        completion = self.client.chat.completions.create(
+            model=self.model_name,
+            messages=[{"role": "user", "content": input_text}],
+        )
+        return completion.choices[0].message.content  # type: ignore
+
+    def stream(self, input_text: str) -> Generator[str, None, None]:
+        completion = self.client.chat.completions.create(
+            model=self.model_name,
+            messages=[{"role": "user", "content": input_text}],
+            stream=True,
+        )
+        for chunk in completion:
+            token = chunk.choices[0].delta.content
+            if token:
+                yield token
+
+
+# if __name__ == "__main__":
+#     # model = CustomModel("facebook/opt-125m")
+#     # print(model.invoke("Hello, how are you?"))
+#     openai_model = CustomOpenAI()
+#     # print(openai_model.invoke("Hello, how are you?"))
+#     for chunk in openai_model.stream("Hello, how are you?"):
+#         print(chunk, end="", flush=True)
