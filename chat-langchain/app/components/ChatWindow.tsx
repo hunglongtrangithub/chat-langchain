@@ -124,24 +124,26 @@ export function ChatWindow(props: {
     try {
       const sourceStepName = "FindDocs";
       let streamedResponse: Record<string, any> = {};
+      // let streamedResponse: any = {};
       await fetchEventSource(apiBaseUrl + "/chat/stream_log", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "text/event-stream",
         },
-        body: JSON.stringify({
-          input: {
-            question: messageValue,
-            chat_history: chatHistory,
-          },
-          config: {
-            metadata: {
-              conversation_id: conversationId,
-            },
-          },
-          include_names: [sourceStepName],
-        }),
+        // body: JSON.stringify({
+        //   input: {
+        //     question: messageValue,
+        //     chat_history: chatHistory,
+        //   },
+        //   config: {
+        //     metadata: {
+        //       conversation_id: conversationId,
+        //     },
+        //   },
+        //   include_names: [sourceStepName],
+        // }),
+        body: JSON.stringify({question: messageValue, chat_history: chatHistory}),
         openWhenHidden: true,
         onerror(err) {
           throw err;
@@ -160,20 +162,24 @@ export function ChatWindow(props: {
           }
           if (msg.event === "data" && msg.data) {
             const chunk = JSON.parse(msg.data);
+            console.log(chunk.ops)
             streamedResponse = applyPatch(
               streamedResponse,
               chunk.ops,
             ).newDocument;
+            // streamedResponse = chunk.ops[0];
+            console.log(streamedResponse)
             if (
               Array.isArray(
                 streamedResponse?.logs?.[sourceStepName]?.final_output?.output,
+                // streamedResponse?.logs?.sourceStepName?.final_output?.output,
               )
             ) {
               sources = streamedResponse.logs[
                 sourceStepName
-              ].final_output.output.map((doc: Record<string, any>) => ({
-                url: doc.metadata.source,
-                title: doc.metadata.title,
+              ].final_output.output.map((doc: string) => ({
+                url: JSON.parse(doc).metadata.source,
+                title: JSON.parse(doc).metadata.title,
               }));
             }
             if (streamedResponse.id !== undefined) {

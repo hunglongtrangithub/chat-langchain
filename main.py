@@ -1,24 +1,28 @@
 """Main entrypoint for the app."""
 
 import asyncio
-from typing import Optional, Union
+from typing import Optional, Union, Any, Iterable, Tuple
 from uuid import UUID
 
 import langsmith
-from fastapi import FastAPI, File, UploadFile, Form
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from langserve import add_routes
+
+# from langserve import add_routes
 from langsmith import Client
 from openai import OpenAI
 from pydantic import BaseModel
-import json
+import async_timeout
+import asyncio
 
 from pathlib import Path
 from dotenv import load_dotenv
 import os
+import json
 
-from chain import ChatRequest, answer_chain
+# from chain import ChatRequest, answer_chain
+from rag_chain import ChatRequest, chain
 
 load_dotenv()
 
@@ -36,18 +40,47 @@ app.add_middleware(
 )
 
 
-add_routes(
-    app, answer_chain, path="/chat", input_type=ChatRequest, config_keys=["metadata"]
-)
+# add_routes(
+#     app, answer_chain, path="/chat", input_type=ChatRequest, config_keys=["metadata"]
+# )
 
 
-# @app.post("/chat/stream_log")
-# async def chat(request: ChatRequest):
-#     async def log_messages():
-#         async for message in answer_chain.astream_log(request):
-#             yield f"data: {json.dumps(message)}\n\n"
+def post_processing(op, path, chunk):
+    return json.dumps({"ops": [{"op": op, "path": path, "value": chunk}]}, separators=(",", ":"))
 
-#     return StreamingResponse(log_messages(), media_type="text/event-stream")
+
+async def dummy_async_iterator(iterable):
+    for item in iterable:
+        await asyncio.sleep(0.1)  # Simulate an asynchronous operation
+        yield f"event: data\ndata: {item}\n\n"
+    yield "event: end\n"
+
+
+def stream_generator(subscription):
+    try:
+        for op, path, chunk in subscription:
+            yield f"event: data\ndata: {post_processing(op, path, chunk)}\n\n"
+        yield f"event: end\n\n\n"
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Stream timed out")
+    finally:
+        pass
+
+
+# TODO: Update when async API is available
+@app.post("/chat/stream_log")
+def chat(request: ChatRequest):
+    # iterable = [i for i in range(50)]
+    # subscription = dummy_async_iterator(iterable)
+    # return StreamingResponse(
+    #     stream_generator(subscription), media_type="text/event-stream"
+    # )
+    subscription = chain.stream_log(request)
+    return StreamingResponse(
+        stream_generator(subscription),
+        media_type="text/event-stream",
+    )
+    # return StreamingResponse(stream_with_queue(subscription), media_type="text/event-stream")
 
 
 class SendFeedbackBody(BaseModel):
