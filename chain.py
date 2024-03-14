@@ -183,7 +183,7 @@ def create_chain(
 
 
 llm = ChatOpenAI(
-    model="gpt-3.5-turbo-16k",
+    model_name="gpt-3.5-turbo-16k",
     streaming=True,
     temperature=0,
 )
