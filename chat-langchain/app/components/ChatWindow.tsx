@@ -162,17 +162,13 @@ export function ChatWindow(props: {
           }
           if (msg.event === "data" && msg.data) {
             const chunk = JSON.parse(msg.data);
-            console.log(chunk.ops)
             streamedResponse = applyPatch(
               streamedResponse,
               chunk.ops,
             ).newDocument;
-            // streamedResponse = chunk.ops[0];
-            console.log(streamedResponse)
             if (
               Array.isArray(
                 streamedResponse?.logs?.[sourceStepName]?.final_output?.output,
-                // streamedResponse?.logs?.sourceStepName?.final_output?.output,
               )
             ) {
               sources = streamedResponse.logs[
