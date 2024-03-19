@@ -46,7 +46,9 @@ app.add_middleware(
 
 
 def post_processing(op, path, chunk):
-    return json.dumps({"ops": [{"op": op, "path": path, "value": chunk}]}, separators=(",", ":"))
+    return json.dumps(
+        {"ops": [{"op": op, "path": path, "value": chunk}]}, separators=(",", ":")
+    )
 
 
 async def dummy_async_iterator(iterable):
@@ -56,18 +58,41 @@ async def dummy_async_iterator(iterable):
     yield "event: end\n"
 
 
-def stream_generator(subscription):
+async def astream_generator(subscription):
     try:
-        for op, path, chunk in subscription:
+        async for op, path, chunk in subscription:
+            print(f"op: {op}, path: {path}, chunk: {chunk}")
             yield f"event: data\ndata: {post_processing(op, path, chunk)}\n\n"
         yield f"event: end\n\n\n"
     except asyncio.TimeoutError:
         raise HTTPException(status_code=504, detail="Stream timed out")
-    finally:
-        pass
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+def stream_generator(subscription):
+    try:
+        for op, path, chunk in subscription:
+            print(f"op: {op}, path: {path}, chunk: {chunk}")
+            yield f"event: data\ndata: {post_processing(op, path, chunk)}\n\n"
+        yield f"event: end\n\n\n"
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Stream timed out")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # TODO: Update when async API is available
+@app.post("/chat/astream_log")
+async def chat(request: ChatRequest):
+    subscription = chain.astream_log(request)
+    return StreamingResponse(
+        astream_generator(subscription),
+        media_type="text/event-stream",
+    )
+    # return StreamingResponse(stream_with_queue(subscription), media_type="text/event-stream")
+
+
 @app.post("/chat/stream_log")
 def chat(request: ChatRequest):
     # iterable = [i for i in range(50)]
@@ -165,7 +190,7 @@ async def transcribe_audio(
 ):
     upload_folder = Path(__file__).resolve().parent / "audio"
     upload_folder.mkdir(exist_ok=True)
-    file_path = upload_folder / file.filename
+    file_path = upload_folder / file.filename  # type: ignore
 
     with open(file_path, "wb") as f:
         f.write(file.file.read())

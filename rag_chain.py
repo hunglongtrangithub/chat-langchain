@@ -6,7 +6,7 @@ from custom_chat_model import CustomModel, CustomChatModel
 from custom_chat_model import Message
 from jinja2 import Template
 
-from typing import List, Optional, Dict, Tuple, Generator, Union
+from typing import List, Optional, Dict, Tuple, Union, Generator, AsyncGenerator
 from pydantic import BaseModel, Field
 
 
@@ -19,18 +19,14 @@ class ChatRequest(BaseModel):
             "example": {
                 "question": "Tell me more about the solar system.",
                 "chat_history": [
-                    {
-                        "human": "hello",
-                        "ai": "Hello! How can I assist you today?"
-                    },
+                    {"human": "hello", "ai": "Hello! How can I assist you today?"},
                     {
                         "human": "What's the largest planet in our solar system?",
-                        "ai": "The largest planet in our solar system is Jupiter."
-                    }
-                ]
+                        "ai": "The largest planet in our solar system is Jupiter.",
+                    },
+                ],
             }
         }
-
 
 
 REPHRASE_TEMPLATE = """\
@@ -61,10 +57,11 @@ NUM_DOCUMENTS = 6
 embeddings = OpenAIEmbeddings(chunk_size=200)
 vectorstore = FAISS.load_local("faiss_index", embeddings=embeddings)
 retriever = vectorstore.as_retriever(search_kwargs=dict(k=NUM_DOCUMENTS))
-llm = CustomModel(CHECKPOINT)
-# llm = CustomOpenAI()
-chat_llm = CustomChatModel(CHECKPOINT)
-# chat_llm = CustomChatOpenAI()
+# llm = CustomModel(CHECKPOINT)
+llm = CustomOpenAI()
+# chat_llm = CustomChatModel(CHECKPOINT)
+chat_llm = CustomChatOpenAI()
+
 
 class RAGChain:
     def __init__(self, retriever, llm, chat_llm):
@@ -72,20 +69,45 @@ class RAGChain:
         self.chat_llm = chat_llm
         self.llm = llm
 
-    def format_chat_history(self, chat_history: Optional[List[Dict[str, str]]]) -> List[Message]:
+    def format_chat_history(
+        self, chat_history: Optional[List[Dict[str, str]]]
+    ) -> List[Message]:
         if not chat_history:
             return []
         formatted_chat_history = []
         for message in chat_history:
             if "human" not in message or "ai" not in message:
-                raise ValueError("Each message in the chat history must have a 'human' and 'ai' key")
+                raise ValueError(
+                    "Each message in the chat history must have a 'human' and 'ai' key"
+                )
             human_message = {"role": "user", "content": message["human"]}
             ai_message = {"role": "assistant", "content": message["ai"]}
             formatted_chat_history.append(human_message)
             formatted_chat_history.append(ai_message)
 
-        formatted_chat_history = [Message(**message) for message in formatted_chat_history]
+        formatted_chat_history = [
+            Message(**message) for message in formatted_chat_history
+        ]
         return formatted_chat_history
+
+    async def aretrieve_documents(self, request: ChatRequest) -> List[Document]:
+        chat_history = request.chat_history or []
+        question = request.question
+
+        if chat_history:
+            template = Template(CHAT_TEMPLATE_STRING)
+            serialized_chat_history = template.render(messages=chat_history)
+
+            rephrase_question_prompt = REPHRASE_TEMPLATE.format(
+                chat_history=serialized_chat_history, question=question
+            )
+            # print(rephrase_question_prompt)
+            rephrased_question = self.llm.invoke(rephrase_question_prompt).strip()
+            question = rephrased_question
+
+        docs = await retriever.aget_relevant_documents(question)
+        # print(docs)
+        return docs
 
     def retrieve_documents(self, request: ChatRequest) -> List[Document]:
         chat_history = request.chat_history or []
@@ -106,36 +128,66 @@ class RAGChain:
         # print(docs)
         return docs
 
-    def stream_log(self, request: ChatRequest) -> Generator[Tuple[str, str, Union[Dict, str, List]], None, None]:
-        docs = self.retrieve_documents(request)
+    def get_response_streamer_with_docs(
+        self, request: ChatRequest, docs: List[Document]
+    ) -> Generator[str, None, None]:
+        serialized_docs = "\n".join(
+            [f"<doc id='{i}'>{doc.page_content}</doc>" for i, doc in enumerate(docs)]
+        )
 
-        serialized_docs = []
-        for i, doc in enumerate(docs):
-            doc_string = f"<doc id='{i}'>{doc.page_content}</doc>"
-            serialized_docs.append(doc_string)
-        serialized_docs = "\n".join(serialized_docs)
-        
-        user_prompt = RESPONSE_TEMPLATE.format(context=serialized_docs, question=request.question)
+        user_prompt = RESPONSE_TEMPLATE.format(
+            context=serialized_docs, question=request.question
+        )
         formatted_chat_history = self.format_chat_history(request.chat_history)
-        current_conversation = formatted_chat_history + [Message(role="user", content=user_prompt)]
+        current_conversation = formatted_chat_history + [
+            Message(role="user", content=user_prompt)
+        ]
 
+        # NOTE: The system prompt is added by the chat llm itself. The chat history does not contain the system messages.
         text_streamer = self.chat_llm(current_conversation, stream=True)
-        formatted_docs = [doc.json() for doc in docs]
+        return text_streamer
 
+    async def astream_log(
+        self, request: ChatRequest
+    ) -> AsyncGenerator[Tuple[str, str, Union[Dict, str, List]], None]:
         yield "replace", "", {}
+
+        docs = await self.aretrieve_documents(request)
+        formatted_docs = [doc.json() for doc in docs]
         yield "add", "/logs", {}
         yield "add", "/logs/FindDocs", {}
         yield "add", "/logs/FindDocs/final_output", {"output": formatted_docs}
-        
-        # NOTE: The system prompt is added by the chat llm itself. The chat history does not contain the system messages.
+
+        text_streamer = self.get_response_streamer_with_docs(request, docs)
         response = ""
         yield "add", "/streamed_output", []
         for chunk in text_streamer:
             response += chunk
             yield "add", "/streamed_output/-", chunk
-        
+
         yield "replace", "/final_output", {"output": response}
-        
+
+    def stream_log(
+        self, request: ChatRequest
+    ) -> Generator[Tuple[str, str, Union[Dict, str, List]], None, None]:
+        docs = self.retrieve_documents(request)
+        formatted_docs = [doc.json() for doc in docs]
+        text_streamer = self.get_response_streamer_with_docs(request, docs)
+
+        yield "replace", "", {}
+        yield "add", "/logs", {}
+        yield "add", "/logs/FindDocs", {}
+        yield "add", "/logs/FindDocs/final_output", {"output": formatted_docs}
+
+        response = ""
+        yield "add", "/streamed_output", []
+        for chunk in text_streamer:
+            response += chunk
+            yield "add", "/streamed_output/-", chunk
+
+        yield "replace", "/final_output", {"output": response}
+
+
 chain = RAGChain(retriever, llm, chat_llm)
 
 if __name__ == "__main__":
@@ -170,5 +222,12 @@ if __name__ == "__main__":
     # print(retrieve_documents(request))
     # print(rag_chain(request))
     # print(chain(request))
-    for chunk in chain.stream_log(request):
-        print(chunk, end="\n", flush=True)
+    # for chunk in chain.stream_log(request):
+    #     print(chunk, end="\n", flush=True)
+    async def print_stream(request):
+        async for chunk in chain.stream_log(request):
+            print(chunk, end="\n", flush=True)
+
+    import asyncio
+
+    asyncio.run(print_stream(request))
