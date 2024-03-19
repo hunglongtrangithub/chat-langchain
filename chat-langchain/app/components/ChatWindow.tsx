@@ -125,7 +125,7 @@ export function ChatWindow(props: {
       const sourceStepName = "FindDocs";
       let streamedResponse: Record<string, any> = {};
       // let streamedResponse: any = {};
-      await fetchEventSource(apiBaseUrl + "/chat/stream_log", {
+      await fetchEventSource(apiBaseUrl + "/chat/astream_log", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

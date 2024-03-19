@@ -61,8 +61,9 @@ async def dummy_async_iterator(iterable):
 async def astream_generator(subscription):
     try:
         async for op, path, chunk in subscription:
-            print(f"op: {op}, path: {path}, chunk: {chunk}")
+            # print(f"op: {op}, path: {path}, chunk: {chunk}")
             yield f"event: data\ndata: {post_processing(op, path, chunk)}\n\n"
+            await asyncio.sleep(0.01) # HACK: This is a temporary fix to prevent the browser from being unable to handle the stream when it becomes too fast
         yield f"event: end\n\n\n"
     except asyncio.TimeoutError:
         raise HTTPException(status_code=504, detail="Stream timed out")
@@ -84,7 +85,7 @@ def stream_generator(subscription):
 
 # TODO: Update when async API is available
 @app.post("/chat/astream_log")
-async def chat(request: ChatRequest):
+async def achat(request: ChatRequest):
     subscription = chain.astream_log(request)
     return StreamingResponse(
         astream_generator(subscription),
