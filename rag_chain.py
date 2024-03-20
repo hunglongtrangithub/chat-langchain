@@ -1,8 +1,10 @@
+from pathlib import Path
+import asyncio
+
 from langchain.vectorstores.faiss import FAISS
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.schema.document import Document
-from custom_chat_model import CustomOpenAI, CustomChatOpenAI
-from custom_chat_model import CustomModel, CustomChatModel
+from custom_chat_model import CustomChatModel, CustomChatOpenAI
 from custom_chat_model import Message
 from jinja2 import Template
 
@@ -29,6 +31,38 @@ class ChatRequest(BaseModel):
         }
 
 
+SYSTEM_TEMPLATE = """\
+You are an expert programmer and problem-solver, tasked with answering any question \
+about Langchain.
+
+Generate a comprehensive and informative answer of 80 words or less for the \
+given question based solely on the provided search results (URL and content). You must \
+only use information from the provided search results. Use an unbiased and \
+journalistic tone. Combine search results together into a coherent answer. Do not \
+repeat text. Cite search results using [${{number}}] notation. Only cite the most \
+relevant results that answer the question accurately. Place these citations at the end \
+of the sentence or paragraph that reference them - do not put them all at the end. If \
+different results refer to different entities within the same name, write separate \
+answers for each entity.
+
+You should use bullet points in your answer for readability. Put citations where they apply
+rather than putting them all at the end.
+
+If there is nothing in the context relevant to the question at hand, just say "Hmm, \
+I'm not sure." Don't try to make up an answer.
+
+Anything between the following `context`  html blocks is retrieved from a knowledge \
+bank, not part of the conversation with the user. 
+
+<context>
+    {context} 
+<context/>
+
+REMEMBER: If there is no relevant information within the context, just say "Hmm, I'm \
+not sure." Don't try to make up an answer. Anything between the preceding 'context' \
+html blocks is retrieved from a knowledge bank, not part of the conversation with the \
+user.\
+"""
 REPHRASE_TEMPLATE = """\
 Given the following conversation and a follow up question, rephrase the follow up \
 question to be a standalone question.
@@ -38,36 +72,27 @@ Chat History:
 Follow Up Input: {question}
 Standalone Question:"""
 
-RESPONSE_TEMPLATE = """\
-Anything between the following `context`  html blocks is retrieved from a knowledge \
-bank, not part of the conversation with the user. 
-
-<context>
-    {context} 
-<context/>
-
-Based on the documents above, respond to the user's message: 
-{question}
-"""
 
 CHAT_TEMPLATE_STRING = """{% for message in messages %}{% if message['human'] is defined %}Human: {{ message['human'] }}\n{% endif %}{% if message['ai'] is defined %}AI: {{ message['ai'] }}\n{% endif %}{% endfor %}"""
 
-CHECKPOINT = "facebook/opt-125m"
+# CHECKPOINT = "facebook/opt-125m"
+CHECKPOINT = "meta-llama/Llama-2-7b-chat-hf"
+chat_llm = CustomChatModel(CHECKPOINT)
+# chat_llm = CustomChatOpenAI()
+
 NUM_DOCUMENTS = 6
-embeddings = OpenAIEmbeddings(chunk_size=200)
-vectorstore = FAISS.load_local("faiss_index", embeddings=embeddings)
+# embeddings = OpenAIEmbeddings(chunk_size=200)
+vectorstore = FAISS.load_local(
+    str(Path(__file__).parent / "faiss_index"),
+    embeddings=OpenAIEmbeddings(chunk_size=200),
+)
 retriever = vectorstore.as_retriever(search_kwargs=dict(k=NUM_DOCUMENTS))
-# llm = CustomModel(CHECKPOINT)
-llm = CustomOpenAI()
-# chat_llm = CustomChatModel(CHECKPOINT)
-chat_llm = CustomChatOpenAI()
 
 
 class RAGChain:
-    def __init__(self, retriever, llm, chat_llm):
+    def __init__(self, retriever, chat_llm):
         self.retriever = retriever
         self.chat_llm = chat_llm
-        self.llm = llm
 
     def format_chat_history(
         self, chat_history: Optional[List[Dict[str, str]]]
@@ -101,12 +126,13 @@ class RAGChain:
             rephrase_question_prompt = REPHRASE_TEMPLATE.format(
                 chat_history=serialized_chat_history, question=question
             )
-            # print(rephrase_question_prompt)
-            rephrased_question = self.llm.invoke(rephrase_question_prompt).strip()
+            rephrased_question = self.chat_llm(
+                [Message(role="user", content=rephrase_question_prompt)],
+                stream=False,
+            ).strip()
             question = rephrased_question
 
         docs = await retriever.aget_relevant_documents(question)
-        # print(docs)
         return docs
 
     def retrieve_documents(self, request: ChatRequest) -> List[Document]:
@@ -120,12 +146,13 @@ class RAGChain:
             rephrase_question_prompt = REPHRASE_TEMPLATE.format(
                 chat_history=serialized_chat_history, question=question
             )
-            # print(rephrase_question_prompt)
-            rephrased_question = self.llm.invoke(rephrase_question_prompt).strip()
+            rephrased_question = self.chat_llm(
+                [Message(role="user", content=rephrase_question_prompt)],
+                stream=False,
+            ).strip()
             question = rephrased_question
 
         docs = retriever.get_relevant_documents(question)
-        # print(docs)
         return docs
 
     def get_response_streamer_with_docs(
@@ -135,15 +162,14 @@ class RAGChain:
             [f"<doc id='{i}'>{doc.page_content}</doc>" for i, doc in enumerate(docs)]
         )
 
-        user_prompt = RESPONSE_TEMPLATE.format(
-            context=serialized_docs, question=request.question
-        )
+        system_prompt = SYSTEM_TEMPLATE.format(context=serialized_docs)
         formatted_chat_history = self.format_chat_history(request.chat_history)
-        current_conversation = formatted_chat_history + [
-            Message(role="user", content=user_prompt)
+        current_conversation = [
+            Message(role="system", content=system_prompt),
+            *formatted_chat_history,
+            Message(role="user", content=request.question),
         ]
 
-        # NOTE: The system prompt is added by the chat llm itself. The chat history does not contain the system messages.
         text_streamer = self.chat_llm(current_conversation, stream=True)
         return text_streamer
 
@@ -188,46 +214,107 @@ class RAGChain:
         yield "replace", "/final_output", {"output": response}
 
 
-chain = RAGChain(retriever, llm, chat_llm)
+class RAGWithoutMemoryChain:
+    def __init__(self, retriever, chat_llm):
+        self.retriever = retriever
+        self.chat_llm = chat_llm
 
-if __name__ == "__main__":
-    current_chat = {
-        "question": "Can you give me examples of applications built with LangChain?",
-        "chat_history": [
-            {
-                "human": "What is LangChain?",
-                "ai": "LangChain is a framework designed to facilitate the building of applications that leverage large language models (LLMs) like GPT. It provides tools and abstractions to make it easier to create complex systems involving language understanding and generation.",
-            },
-            {
-                "human": "How does LangChain work?",
-                "ai": "LangChain works by providing a set of libraries and APIs that allow developers to easily integrate language models into their applications. It supports various components for dialogue management, document retrieval, and information synthesis, making it versatile for a range of use cases.",
-            },
-            {
-                "human": "What are some key features of LangChain?",
-                "ai": "Key features of LangChain include modular components for building chat systems, document retrieval and summarization tools, and integration capabilities with multiple language models and data sources. It's designed to be flexible and extensible, allowing developers to customize their applications as needed.",
-            },
-            {
-                "human": "Can LangChain be used for building chatbots?",
-                "ai": "Yes, LangChain can be used for building chatbots. It offers specialized components for handling conversations, managing context, and generating responses, making it a powerful tool for developers looking to create advanced chatbot applications.",
-            },
-            {
-                "human": "How can LangChain integrate with other technologies?",
-                "ai": "LangChain can integrate with other technologies through its flexible architecture. It supports connecting with various APIs, data sources, and language models, allowing for seamless integration with existing systems and tools. This makes it suitable for a wide range of applications beyond just language processing.",
-            },
-        ],
-    }
+    async def aretrieve_documents(self, request: ChatRequest) -> List[Document]:
+        question = request.question
+        docs = await retriever.aget_relevant_documents(question)
+        return docs
 
-    request = ChatRequest(**current_chat)
+    def retrieve_documents(self, request: ChatRequest) -> List[Document]:
+        question = request.question
+        docs = retriever.get_relevant_documents(question)
+        return docs
 
-    # print(retrieve_documents(request))
-    # print(rag_chain(request))
-    # print(chain(request))
-    # for chunk in chain.stream_log(request):
-    #     print(chunk, end="\n", flush=True)
-    async def print_stream(request):
-        async for chunk in chain.stream_log(request):
-            print(chunk, end="\n", flush=True)
+    def get_response_streamer_with_docs(
+        self, request: ChatRequest, docs: List[Document]
+    ) -> Generator[str, None, None]:
+        serialized_docs = "\n".join([f"<doc id='{i}'>{doc.page_content}</doc>" for i, doc in enumerate(docs)])
 
-    import asyncio
+        system_prompt = SYSTEM_TEMPLATE.format(context=serialized_docs)
+        current_conversation = [
+            Message(role="system", content=system_prompt),
+            Message(role="user", content=request.question),
+        ]
 
-    asyncio.run(print_stream(request))
+        text_streamer = self.chat_llm(current_conversation, stream=True)
+        return text_streamer
+
+    async def _arun(self, func, *args, **kwargs):
+        """Run a synchronous function in the background thread pool."""
+        loop = asyncio.get_running_loop()
+        # None uses the default executor (ThreadPoolExecutor)
+        return await loop.run_in_executor(None, func, *args, **kwargs)
+    
+    async def aget_response_streamer_with_docs(self, request, docs):
+
+        # Execute the synchronous function in a separate thread
+        # and wait for it to complete without blocking the event loop.
+        sync_generator = await self._arun(
+            self.get_response_streamer_with_docs, request, docs
+        )
+
+        # Now, adapt the synchronous generator for asynchronous iteration
+        async def async_generator_wrapper(sync_gen):
+            while True:
+                try:
+                    # Run the next() operation of the sync generator in a separate thread
+                    item = await self._arun(next, sync_gen, StopIteration)
+                    # If StopIteration is used as a sentinel value by _arun to indicate completion
+                    if item is StopIteration:
+                        break
+                    yield item
+                except StopIteration:
+                    # Break the loop if the generator is exhausted
+                    break
+
+        return async_generator_wrapper(sync_generator)
+
+    def stream_log(
+        self, request: ChatRequest
+    ) -> Generator[Tuple[str, str, Union[Dict, str, List]], None, None]:
+        docs = self.retrieve_documents(request)
+        formatted_docs = [doc.json() for doc in docs]
+        text_streamer = self.get_response_streamer_with_docs(request, docs)
+
+        yield "replace", "", {}
+        yield "add", "/logs", {}
+        yield "add", "/logs/FindDocs", {}
+        yield "add", "/logs/FindDocs/final_output", {"output": formatted_docs}
+
+        response = ""
+        yield "add", "/streamed_output", []
+        for chunk in text_streamer:
+            response += chunk
+            yield "add", "/streamed_output/-", chunk
+
+        yield "replace", "/final_output", {"output": response}
+
+    async def astream_log(
+        self, request: ChatRequest
+    ) -> AsyncGenerator[Tuple[str, str, Union[Dict, str, List]], None]:
+        yield "replace", "", {}
+
+        # Retrieve documents first
+        docs = await self.aretrieve_documents(request)
+        formatted_docs = [doc.json() for doc in docs]
+        yield "add", "/logs", {}
+        yield "add", "/logs/FindDocs", {}
+        yield "add", "/logs/FindDocs/final_output", {"output": formatted_docs}
+
+        # Use the asynchronous version to get the response streamer with the retrieved docs
+        # Assuming get_response_streamer_with_docs_async is an async generator
+        response = ""
+        yield "add", "/streamed_output", []
+        async for chunk in await self.aget_response_streamer_with_docs(request, docs):
+            response += chunk
+            yield "add", "/streamed_output/-", chunk
+
+        yield "replace", "/final_output", {"output": response}
+
+
+chain = RAGChain(retriever, chat_llm)
+chain_without_memory = RAGWithoutMemoryChain(retriever, chat_llm)
