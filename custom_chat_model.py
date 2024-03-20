@@ -4,12 +4,14 @@ from transformers import (
     TextIteratorStreamer,
     pipeline,
 )
+import torch
 from openai import OpenAI
 from threading import Thread
 from typing import Dict, Generator, Optional, Union, List
 from pydantic import BaseModel, root_validator
 
 
+# This class is for reference only, it is not used in the final implementation
 class CustomModel:
     default_generation_kwargs = {
         "max_new_tokens": 512,
@@ -23,20 +25,44 @@ class CustomModel:
         checkpoint: str,
         generation_kwargs: Optional[Dict[str, Union[int, bool, float]]] = None,
     ):
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.tokenizer = AutoTokenizer.from_pretrained(checkpoint)
-        self.model = AutoModelForCausalLM.from_pretrained(checkpoint)
-        self.pipe = pipeline("text-generation", checkpoint)
+        self.model = AutoModelForCausalLM.from_pretrained(checkpoint).to(self.device)
         self.generation_kwargs = generation_kwargs or self.default_generation_kwargs
+        self.max_length = 512  # can modify this to be the max length of the model
+
+        print("CustomChatModel initialized.")
+        print(
+            "Device:",
+            (
+                str(torch.cuda.device_count()) + " gpus"
+                if torch.cuda.is_available()
+                else "cpu"
+            ),
+        )
+        print("Checkpoint:", checkpoint)
 
     def invoke(self, input_text: str) -> str:
-        result = self.pipe(
-            input_text,
+        input_tokens = self.tokenizer(text=input_text, return_tensors="pt").to(self.device)
+
+        # truncate inputs to max_length of model (take the last self.max_length tokens)
+        input_tokens["input_ids"] = input_tokens["input_ids"][:, -self.max_length :]
+        input_tokens["attention_mask"] = input_tokens["attention_mask"][:, -self.max_length :]
+
+        # get the size of the prompt
+        prompt_size = input_tokens["input_ids"].shape[1]
+        print("Prompt size:", prompt_size)
+
+        generated_tokens = self.model.generate(
+            **input_tokens,
             **self.generation_kwargs,
-            # truncation=True,
-            # max_length=512,
-        )  # type: ignore
-        response = result[0]["generated_text"]  # type: ignore
-        return response  # type: ignore
+        )
+
+        # skip the prompt tokens and decode the rest
+        response = self.tokenizer.decode(
+            generated_tokens[:, prompt_size:][0], skip_special_tokens=True
+        )
+        return response
 
     def stream(self, input_text: str) -> Generator[str, None, None]:
         streamer = TextIteratorStreamer(
@@ -44,18 +70,21 @@ class CustomModel:
             skip_prompt=True,
             skip_special_tokens=True,
         )
-        inputs = self.tokenizer(
-            input_text,
-            return_tensors="pt",
-            # truncation=True,
-            # max_length=512,
-        )
-        # truncate inputs to max_length of model
-        # print(inputs)
+
+        input_tokens = self.tokenizer(text=input_text, return_tensors="pt").to(self.device)
+
+        # truncate inputs to max_length of model (take the last self.max_length tokens)
+        input_tokens["input_ids"] = input_tokens["input_ids"][:, -self.max_length :]
+        input_tokens["attention_mask"] = input_tokens["attention_mask"][:, -self.max_length :]
+
+        # get the size of the prompt
+        prompt_size = input_tokens["input_ids"].shape[1]
+        print("Prompt size:", prompt_size)
+
         thread = Thread(
             target=self.model.generate,
             kwargs={
-                **inputs,
+                **input_tokens,
                 "streamer": streamer,
                 **self.generation_kwargs,
             },
@@ -93,56 +122,95 @@ class CustomChatModel:
         "top_k": 50,
         "top_p": 0.95,
     }
-    default_system_prompt = "You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe. Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature.\n\nIf a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information."
 
     def __init__(
         self,
         checkpoint: str,
-        system_prompt: Optional[str] = None,
         generation_kwargs: Optional[Dict[str, Union[int, bool, float]]] = None,
     ):
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.tokenizer = AutoTokenizer.from_pretrained(checkpoint)
-        self.model = AutoModelForCausalLM.from_pretrained(checkpoint)
-        self.pipe = pipeline("text-generation", checkpoint)
-
-        self.system_prompt = system_prompt or self.default_system_prompt
+        self.model = AutoModelForCausalLM.from_pretrained(checkpoint, device_map="auto")
+        self.pipe = pipeline(
+            "text-generation",
+            model=self.model,
+            tokenizer=self.tokenizer,
+            device_map="auto",
+        )
+        self.max_length = 512  # can modify this to be the max length of the model
         self.generation_kwargs = generation_kwargs or self.default_generation_kwargs
 
+        print("CustomChatModel initialized.")
+        print(
+            "Device:",
+            (
+                str(torch.cuda.device_count()) + " gpus"
+                if torch.cuda.is_available()
+                else "cpu"
+            ),
+        )
+        print("Checkpoint:", checkpoint)
+
     def invoke(self, current_conversation: List[Dict[str, str]]) -> str:
-        chat_history = [
-            {"role": "system", "content": self.system_prompt}
-        ] + current_conversation
-        result = self.pipe(
-            chat_history,
+        chat_history = self.tokenizer.apply_chat_template(
+            current_conversation,
+            tokenize=False,
+            add_generation_prompt=True,
+            return_tensors="pt",
+        )
+
+        tokenized_chat_history = self.tokenizer(
+            text=chat_history, return_tensors="pt"
+        ).to(self.device)
+
+        # truncate inputs to max_length of model (take the last self.max_length tokens)
+        tokenized_chat_history["input_ids"] = tokenized_chat_history["input_ids"][:, -self.max_length :]
+        tokenized_chat_history["attention_mask"] = tokenized_chat_history["attention_mask"][:, -self.max_length :]
+
+        # get the size of the prompt
+        prompt_size = tokenized_chat_history["input_ids"].shape[1]
+        # print("Prompt size:", prompt_size)
+
+        generated_tokens = self.model.generate(
+            **tokenized_chat_history,
             **self.generation_kwargs,
-            # truncation=True,
-            # max_length=512,
-        )  # type: ignore
-        response = result[0]["generated_text"][-1]["content"]  # type: ignore
-        return response  # type: ignore
+        )
+
+        # skip the prompt tokens and decode the rest
+        response = self.tokenizer.decode(
+            generated_tokens[:, prompt_size:][0], skip_special_tokens=True
+        )
+        return response
 
     def stream(
         self, current_conversation: List[Dict[str, str]]
     ) -> Generator[str, None, None]:
-        chat_history = [
-            {"role": "system", "content": self.system_prompt}
-        ] + current_conversation
         streamer = TextIteratorStreamer(
             self.tokenizer, skip_prompt=True, skip_special_tokens=True
         )
-        tokenized_chat_history = self.tokenizer.apply_chat_template(
-            chat_history,
-            tokenize=True,
+        chat_history = self.tokenizer.apply_chat_template(
+            current_conversation,
+            tokenize=False,
             add_generation_prompt=True,
             return_tensors="pt",
-            # truncation=True,
-            # max_length=512,
         )
+
+        tokenized_chat_history = self.tokenizer(
+            text=chat_history, return_tensors="pt"
+        ).to(self.device)
+
+        # truncate inputs to max_length of model (take the last self.max_length tokens)
+        tokenized_chat_history["input_ids"] = tokenized_chat_history["input_ids"][:, -self.max_length :]
+        tokenized_chat_history["attention_mask"] = tokenized_chat_history["attention_mask"][:, -self.max_length :]
+
+        # get the size of the prompt
+        prompt_size = tokenized_chat_history["input_ids"].shape[1]
+        # print("Prompt size:", prompt_size)
 
         thread = Thread(
             target=self.model.generate,
             kwargs={
-                "inputs": tokenized_chat_history,
+                **tokenized_chat_history,
                 "streamer": streamer,
                 **self.generation_kwargs,
             },
@@ -217,6 +285,7 @@ class CustomChatOpenAI:
             return self.invoke(current_conversation)
 
 
+# This class is for reference only, it is not used in the final implementation
 class CustomOpenAI:
     def __init__(self, model_name: str = "gpt-3.5-turbo"):
         self.client = OpenAI()
