@@ -16,7 +16,6 @@ from openai import OpenAI
 from pydantic import BaseModel
 
 # import async_timeout
-import asyncio
 
 from pathlib import Path
 from dotenv import load_dotenv
