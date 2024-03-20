@@ -1,24 +1,36 @@
-from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer, pipeline
+from threading import Thread
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    TextIteratorStreamer,
+    pipeline,
+)
+import sys
+from pathlib import Path
 
-checkpoint = "facebook/opt-125m"
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+from custom_chat_model import CustomChatModel, CustomModel
+
+# checkpoint = "facebook/opt-125m"
+checkpoint = "meta-llama/Llama-2-7b-chat-hf"
 
 tokenizer = AutoTokenizer.from_pretrained(checkpoint)
-model = AutoModelForCausalLM.from_pretrained(checkpoint)
-pipe = pipeline("text-generation", checkpoint)
 
-input_text = "What is the capital of France? " * 1000
-default_generation_kwargs = {
-    "max_new_tokens": 512,
-    "num_return_sequences": 1,
-    "do_sample": True,
-    "temperature": 0.1,
-}
-# inputs = tokenizer.encode(input_text, max_length=512, truncation=True, return_tensors="pt")
-#
-# # Generate text
-# output_sequences = model.generate(inputs, **default_generation_kwargs)  # Adjust `max_length` as needed
-#
-# # Decode the generated text
-# generated_text = tokenizer.decode(output_sequences[0], skip_special_tokens=True)
-generated_text = pipe(input_text, **default_generation_kwargs, max_length=1024)[0]["generated_text"]
-print(generated_text)
+messages = [
+    # {
+    #     "role": "system",
+    #     "content": "You are a friendly chatbot who always responds in the style of a pirate",
+    # },
+    {
+        "role": "user",
+        "content": "How many helicopters can a human eat in one sitting?",
+    },
+]
+
+conversation_string = tokenizer.apply_chat_template(
+    messages,
+    add_generation_prompt=True,
+    tokenize=False,
+)
+print(tokenizer.default_chat_template)
+print(conversation_string)
