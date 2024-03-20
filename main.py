@@ -1,7 +1,7 @@
 """Main entrypoint for the app."""
 
 import asyncio
-from typing import Optional, Union, Iterable, Tuple
+from typing import Optional, Union
 from uuid import UUID
 
 import langsmith
@@ -14,8 +14,6 @@ import langsmith
 from langsmith import Client
 from openai import OpenAI
 from pydantic import BaseModel
-
-# import async_timeout
 
 from pathlib import Path
 from dotenv import load_dotenv
