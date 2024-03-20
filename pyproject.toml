@@ -19,6 +19,7 @@ lxml = "^4.9.3"
 langserve = {extras = ["server"], version = "^0.0.39"}
 voyageai = "^0.1.4"
 python-dotenv = "^1.0.1"
+transformers = "^4.38.2"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.9.1"

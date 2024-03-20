@@ -1,13 +1,16 @@
 """Main entrypoint for the app."""
+
 import asyncio
 from typing import Optional, Union
 from uuid import UUID
 
 import langsmith
-from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks, HTTPException
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from langserve import add_routes
+
+# from langserve import add_routes
+import langsmith
 from langsmith import Client
 from openai import OpenAI
 from pydantic import BaseModel
@@ -15,8 +18,10 @@ from pydantic import BaseModel
 from pathlib import Path
 from dotenv import load_dotenv
 import os
+import json
 
-from chain import ChatRequest, answer_chain
+# from chain import ChatRequest, answer_chain
+from rag_chain import ChatRequest, chain
 
 load_dotenv()
 
@@ -34,9 +39,58 @@ app.add_middleware(
 )
 
 
-add_routes(
-    app, answer_chain, path="/chat", input_type=ChatRequest, config_keys=["metadata"]
-)
+# add_routes(
+#     app, answer_chain, path="/chat", input_type=ChatRequest, config_keys=["metadata"]
+# )
+
+
+def post_processing(op, path, chunk):
+    return json.dumps(
+        {"ops": [{"op": op, "path": path, "value": chunk}]}, separators=(",", ":")
+    )
+
+
+async def astream_generator(subscription):
+    try:
+        async for op, path, chunk in subscription:
+            yield f"event: data\ndata: {post_processing(op, path, chunk)}\n\n"
+            # HACK: This is a temporary fix to prevent the browser from being unable to handle the stream when it becomes too fast
+            await asyncio.sleep(0.01)
+        yield f"event: end\n\n\n"
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Stream timed out")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+def stream_generator(subscription):
+    try:
+        for op, path, chunk in subscription:
+            print(f"op: {op}, path: {path}, chunk: {chunk}")
+            yield f"event: data\ndata: {post_processing(op, path, chunk)}\n\n"
+        yield f"event: end\n\n\n"
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Stream timed out")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.post("/chat/astream_log")
+async def achat(request: ChatRequest):
+    subscription = chain.astream_log(request)
+    return StreamingResponse(
+        astream_generator(subscription),
+        media_type="text/event-stream",
+    )
+
+
+@app.post("/chat/stream_log")
+def chat(request: ChatRequest):
+    subscription = chain.stream_log(request)
+    return StreamingResponse(
+        stream_generator(subscription),
+        media_type="text/event-stream",
+    )
 
 
 class SendFeedbackBody(BaseModel):
@@ -121,7 +175,7 @@ async def transcribe_audio(
 ):
     upload_folder = Path(__file__).resolve().parent / "audio"
     upload_folder.mkdir(exist_ok=True)
-    file_path = upload_folder / file.filename
+    file_path = upload_folder / file.filename  # type: ignore
 
     with open(file_path, "wb") as f:
         f.write(file.file.read())

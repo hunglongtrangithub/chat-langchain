@@ -124,24 +124,26 @@ export function ChatWindow(props: {
     try {
       const sourceStepName = "FindDocs";
       let streamedResponse: Record<string, any> = {};
-      await fetchEventSource(apiBaseUrl + "/chat/stream_log", {
+      // let streamedResponse: any = {};
+      await fetchEventSource(apiBaseUrl + "/chat/astream_log", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "text/event-stream",
         },
-        body: JSON.stringify({
-          input: {
-            question: messageValue,
-            chat_history: chatHistory,
-          },
-          config: {
-            metadata: {
-              conversation_id: conversationId,
-            },
-          },
-          include_names: [sourceStepName],
-        }),
+        // body: JSON.stringify({
+        //   input: {
+        //     question: messageValue,
+        //     chat_history: chatHistory,
+        //   },
+        //   config: {
+        //     metadata: {
+        //       conversation_id: conversationId,
+        //     },
+        //   },
+        //   include_names: [sourceStepName],
+        // }),
+        body: JSON.stringify({question: messageValue, chat_history: chatHistory}),
         openWhenHidden: true,
         onerror(err) {
           throw err;
@@ -171,9 +173,9 @@ export function ChatWindow(props: {
             ) {
               sources = streamedResponse.logs[
                 sourceStepName
-              ].final_output.output.map((doc: Record<string, any>) => ({
-                url: doc.metadata.source,
-                title: doc.metadata.title,
+              ].final_output.output.map((doc: string) => ({
+                url: JSON.parse(doc).metadata.source,
+                title: JSON.parse(doc).metadata.title,
               }));
             }
             if (streamedResponse.id !== undefined) {
