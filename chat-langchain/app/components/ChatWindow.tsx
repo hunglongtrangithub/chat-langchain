@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { EmptyState } from "../components/EmptyState";
 import { ChatMessageBubble, Message } from "../components/ChatMessageBubble";
@@ -24,7 +24,7 @@ import {
   Spinner,
 } from "@chakra-ui/react";
 import { ArrowUpIcon } from "@chakra-ui/icons";
-import { MdMic, MdStop } from 'react-icons/md';
+import { MdMic, MdStop } from "react-icons/md";
 
 import { Source } from "./SourceBubble";
 import { apiBaseUrl } from "../utils/constants";
@@ -41,40 +41,46 @@ export function ChatWindow(props: {
   const [isRecording, setIsRecording] = useState(false);
   const [chatHistory, setChatHistory] = useState<
     { human: string; ai: string }[]
-    >([]);
+  >([]);
 
   const recorderRef = useRef({
-      audioChunks: [] as Blob[],
-      mediaRecorder: null as MediaRecorder | null,
+    audioChunks: [] as Blob[],
+    mediaRecorder: null as MediaRecorder | null,
 
-      start: async function() {
-        if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
-          return Promise.reject(new Error('mediaDevices API or getUserMedia method is not supported in this browser.'));
-        }
-        console.log("start recording");
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        this.mediaRecorder = new MediaRecorder(stream);
-        
-        this.mediaRecorder.ondataavailable = (event) => {
-          this.audioChunks.push(event.data);
-          console.log("Chunk length: ", this.audioChunks.length);
-        };
-        this.mediaRecorder.start(10); // FIXME: This is a temporary fix to prevent the first chunk from being empty
-      },
-
-      stop: async function() {
-        console.log("stop recording");
-        if (this.mediaRecorder) {
-          this.mediaRecorder.onstop = async () => {
-            const audioBlob = new Blob(this.audioChunks, { type: "audio/mp3" });
-            this.mediaRecorder?.stream.getTracks().forEach(track => track.stop()); // Stop all tracks
-            this.audioChunks = []; // Clear audioChunks after stopping
-            this.mediaRecorder = null; // Reset mediaRecorder after stopping
-            await transcribeAndSendMessage(audioBlob);
-          };
-          this.mediaRecorder.stop();
-        }
+    start: async function () {
+      if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+        return Promise.reject(
+          new Error(
+            "mediaDevices API or getUserMedia method is not supported in this browser.",
+          ),
+        );
       }
+      console.log("start recording");
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.mediaRecorder = new MediaRecorder(stream);
+
+      this.mediaRecorder.ondataavailable = (event) => {
+        this.audioChunks.push(event.data);
+        console.log("Chunk length: ", this.audioChunks.length);
+      };
+      this.mediaRecorder.start(10); // HACK: This is a temporary fix to prevent the first chunk from being empty
+    },
+
+    stop: async function () {
+      console.log("stop recording");
+      if (this.mediaRecorder) {
+        this.mediaRecorder.onstop = async () => {
+          const audioBlob = new Blob(this.audioChunks, { type: "audio/mp3" });
+          this.mediaRecorder?.stream
+            .getTracks()
+            .forEach((track) => track.stop()); // Stop all tracks
+          this.audioChunks = []; // Clear audioChunks after stopping
+          this.mediaRecorder = null; // Reset mediaRecorder after stopping
+          await transcribeAndSendMessage(audioBlob);
+        };
+        this.mediaRecorder.stop();
+      }
+    },
   });
 
   const { placeholder, titleText = "An LLM" } = props;
@@ -143,7 +149,10 @@ export function ChatWindow(props: {
         //   },
         //   include_names: [sourceStepName],
         // }),
-        body: JSON.stringify({question: messageValue, chat_history: chatHistory}),
+        body: JSON.stringify({
+          question: messageValue,
+          chat_history: chatHistory,
+        }),
         openWhenHidden: true,
         onerror(err) {
           throw err;
@@ -224,7 +233,7 @@ export function ChatWindow(props: {
 
   const playMessageAudio = async (message: string) => {
     console.log("play message audio for ", message);
-    
+
     const audioResponse = await fetch(apiBaseUrl + "/text_to_speech", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -232,7 +241,7 @@ export function ChatWindow(props: {
     });
 
     if (!audioResponse.ok) {
-      console.error('Failed to fetch audio');
+      console.error("Failed to fetch audio");
       return;
     }
 
@@ -246,7 +255,7 @@ export function ChatWindow(props: {
     console.log("transcribe and send message");
 
     const formData = new FormData();
-    formData.append("file", audioBlob, `${conversationId}.mp3`)
+    formData.append("file", audioBlob, `${conversationId}.mp3`);
     formData.append("conversationId", conversationId);
 
     const response = await fetch(apiBaseUrl + "/transcribe_audio", {
