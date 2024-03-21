@@ -251,12 +251,12 @@ class CustomChatOpenAI:
         self.client = OpenAI()
         self.model_name = model_name
 
-    def invoke(self, current_conversation: List[Dict[str, str]]) -> str:
+    def invoke(self, current_conversation: List[Dict[str, str]]) -> Optional[str]:
         completion = self.client.chat.completions.create(
             model=self.model_name,
             messages=current_conversation,  # type: ignore
         )
-        return completion.choices[0].message.content  # type: ignore
+        return completion.choices[0].message.content
 
     def stream(
         self, current_conversation: List[Dict[str, str]]
