@@ -22,12 +22,14 @@ class CustomModel:
 
     def __init__(
         self,
-        checkpoint: str,
+        checkpoint: str = "meta-llama/Llama-2-7b-hf",
+        model=None,
+        tokenizer=None,
         generation_kwargs: Optional[Dict[str, Union[int, bool, float]]] = None,
     ):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.tokenizer = AutoTokenizer.from_pretrained(checkpoint)
-        self.model = AutoModelForCausalLM.from_pretrained(checkpoint).to(self.device)
+        self.tokenizer = AutoTokenizer.from_pretrained(checkpoint) if not tokenizer else tokenizer
+        self.model = AutoModelForCausalLM.from_pretrained(checkpoint, device_map="auto") if not model else model
         self.generation_kwargs = generation_kwargs or self.default_generation_kwargs
         self.max_length = 512  # can modify this to be the max length of the model
 
@@ -125,12 +127,14 @@ class CustomChatModel:
 
     def __init__(
         self,
-        checkpoint: str,
+        checkpoint: str = "meta-llama/Llama-2-7b-chat-hf",
+        model=None, 
+        tokenizer=None,
         generation_kwargs: Optional[Dict[str, Union[int, bool, float]]] = None,
     ):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.tokenizer = AutoTokenizer.from_pretrained(checkpoint)
-        self.model = AutoModelForCausalLM.from_pretrained(checkpoint, device_map="auto")
+        self.tokenizer = AutoTokenizer.from_pretrained(checkpoint) if not tokenizer else tokenizer
+        self.model = AutoModelForCausalLM.from_pretrained(checkpoint, device_map="auto") if not model else model
         self.pipe = pipeline(
             "text-generation",
             model=self.model,
