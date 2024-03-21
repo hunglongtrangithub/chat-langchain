@@ -148,4 +148,4 @@ node_modules/
 audio/
 
 # ignore model directory
-llm/Llama-2-7b-chat_peft_128
+llm_llama/
