@@ -1,4 +1,5 @@
 """Load html from files, clean up, split, ingest into Weaviate."""
+
 import logging
 import os
 import re
@@ -11,8 +12,6 @@ from langchain.schema.embeddings import Embeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.utils.html import PREFIXES_TO_IGNORE_REGEX, SUFFIXES_TO_IGNORE_REGEX
 from langchain.vectorstores.faiss import FAISS
-
-from langchain.embeddings.voyageai import VoyageEmbeddings
 
 logger = logging.getLogger(__name__)
 
@@ -72,8 +71,6 @@ def load_api_docs():
 
 
 def get_embeddings_model() -> Embeddings:
-    if os.environ.get("VOYAGE_API_KEY") and os.environ.get("VOYAGE_AI_MODEL"):
-        return VoyageEmbeddings(model=os.environ["VOYAGE_AI_MODEL"])
     return OpenAIEmbeddings(chunk_size=200)
 
 
