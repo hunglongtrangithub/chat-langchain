@@ -76,12 +76,17 @@ Standalone Question:"""
 CHAT_TEMPLATE_STRING = """{% for message in messages %}{% if message['human'] is defined %}Human: {{ message['human'] }}\n{% endif %}{% if message['ai'] is defined %}AI: {{ message['ai'] }}\n{% endif %}{% endfor %}"""
 
 # CHECKPOINT = "facebook/opt-125m"
-CHECKPOINT = "meta-llama/Llama-2-7b-chat-hf"
-chat_llm = CustomChatModel(CHECKPOINT)
-# chat_llm = CustomChatOpenAI()
+# CHECKPOINT = "meta-llama/Llama-2-70b-chat-hf"
+# chat_llm = CustomChatModel(CHECKPOINT)
+
+# from llm_llama.model_generator.llm_pipeline import load_fine_tuned_model
+# CHECKPOINT = Path(__file__).parent / "llm_llama/Llama-2-7b-chat_peft_128"
+# model, tokenizer = load_fine_tuned_model(CHECKPOINT, peft_model=1)
+# chat_llm = CustomChatModel(model=model, tokenizer=tokenizer)
+
+chat_llm = CustomChatOpenAI()
 
 NUM_DOCUMENTS = 6
-# embeddings = OpenAIEmbeddings(chunk_size=200)
 vectorstore = FAISS.load_local(
     str(Path(__file__).parent / "faiss_index"),
     embeddings=OpenAIEmbeddings(chunk_size=200),
@@ -317,4 +322,4 @@ class RAGWithoutMemoryChain:
 
 
 chain = RAGChain(retriever, chat_llm)
-chain_without_memory = RAGWithoutMemoryChain(retriever, chat_llm)
+# chain_without_memory = RAGWithoutMemoryChain(retriever, chat_llm)
