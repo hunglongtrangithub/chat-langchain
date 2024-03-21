@@ -300,7 +300,7 @@ class CustomOpenAI:
             model=self.model_name,
             messages=[{"role": "user", "content": input_text}],
         )
-        return completion.choices[0].message.content  # type: ignore
+        return completion.choices[0].message.content or ""
 
     def stream(self, input_text: str) -> Generator[str, None, None]:
         completion = self.client.chat.completions.create(
@@ -309,9 +309,8 @@ class CustomOpenAI:
             stream=True,
         )
         for chunk in completion:
-            token = chunk.choices[0].delta.content
-            if token:
-                yield token
+            token = chunk.choices[0].delta.content or ""
+            yield token
 
 
 # if __name__ == "__main__":
