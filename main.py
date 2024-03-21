@@ -1,12 +1,11 @@
 """Main entrypoint for the app."""
 
-
 import asyncio
 from typing import Optional, Union
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import langsmith
-from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks, HTTPException
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -18,7 +17,6 @@ from pydantic import BaseModel
 
 from pathlib import Path
 from dotenv import load_dotenv
-import os
 import json
 
 # from chain import ChatRequest, answer_chain
@@ -46,6 +44,9 @@ app.add_middleware(
 # add_routes(
 #     app, answer_chain, path="/chat", input_type=ChatRequest, config_keys=["metadata"]
 # )
+@app.get("/")
+def read_root():
+    return {"Hello": "World"}
 
 
 def post_processing(op, path, chunk):
@@ -139,7 +140,7 @@ async def get_trace(body: GetTraceBody):
 async def transcribe_audio(
     file: UploadFile = File(...), conversationId: str = Form(...)
 ):
-    file_name = file.filename
+    file_name = file.filename if file.filename else f"{uuid4()}.mp3"
     # save to local file
     upload_folder = Path(__file__).resolve().parent / "audio"
     upload_folder.mkdir(exist_ok=True)
@@ -155,10 +156,7 @@ async def transcribe_audio(
 
 
 @app.post("/text_to_speech")
-async def text_to_speech(
-    request: MessageRequest,
-    # background_tasks: BackgroundTasks,
-):
+async def text_to_speech(request: MessageRequest):
     text = request.message
     speech_file_name = request.conversationId + ".mp3"
     upload_folder = Path(__file__).resolve().parent / "audio"
