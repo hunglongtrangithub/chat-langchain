@@ -1,0 +1,16 @@
+#!/usr/bin/expect
+
+# Set Python script
+set script "expect.py"
+
+# Run the script
+spawn python3 $script
+
+# Wait for the prompt
+expect "You must confirm the following:"
+
+# Respond with 'y' for yes
+send "y\r"
+
+# Wait for the script to finish
+expect eof

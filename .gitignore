@@ -145,4 +145,7 @@ node_modules/
 .envrc
 
 # Ignore generated speech file
-speech.mp3
+audio/
+
+# ignore model directory
+llm/Llama-2-7b-chat_peft_128

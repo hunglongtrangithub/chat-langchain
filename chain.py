@@ -2,6 +2,8 @@ import os
 from operator import itemgetter
 from typing import Dict, List, Optional, Sequence
 
+from llm_without_streaming import llm
+
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.embeddings.voyageai import VoyageEmbeddings

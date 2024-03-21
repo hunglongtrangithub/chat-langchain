@@ -6,7 +6,7 @@ authors = ["SN <6432132+samnoyes@users.noreply.github.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.10, <3.12"
 openai = "^1.10.0"
 fastapi = "^0.103.1"
 pydantic = "1.10"
@@ -14,12 +14,23 @@ langchain = "^0.0.333"
 uvicorn = "^0.23.2"
 beautifulsoup4 = "^4.12.2"
 tiktoken = "^0.4.0"
-psycopg2 = "^2.9.7"
 lxml = "^4.9.3"
 langserve = {extras = ["server"], version = "^0.0.39"}
 voyageai = "^0.1.4"
 python-dotenv = "^1.0.1"
 transformers = "^4.38.2"
+faiss-cpu = "^1.7.4"
+torch = "^2.1.0"
+bitsandbytes = "^0.41.1"
+accelerate = "^0.23.0"
+scipy = "^1.11.3"
+python-multipart = "^0.0.7"
+TTS = "^0.22.0"
+peft = "^0.8.2"
+langdetect = "^1.0.9"
+cutlet = "^0.3.0"
+mecab-python3 = "^1.0.8"
+unidic-lite = "^1.0.8"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.9.1"

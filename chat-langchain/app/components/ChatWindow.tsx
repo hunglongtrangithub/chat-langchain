@@ -181,9 +181,7 @@ export function ChatWindow(props: {
             if (streamedResponse.id !== undefined) {
               runId = streamedResponse.id;
             }
-            if (Array.isArray(streamedResponse?.streamed_output)) {
-              accumulatedMessage = streamedResponse.streamed_output.join("");
-            }
+            accumulatedMessage = streamedResponse?.final_output?.output ?? "Loading...";
             const parsedResult = marked.parse(accumulatedMessage);
 
             setMessages((prevMessages) => {
