@@ -7,12 +7,14 @@ from rag_chain import ChatRequest, chain, chain_without_memory
 import time
 from contextlib import contextmanager
 
+
 @contextmanager
 def timeit():
     start = time.time()
     yield
     end = time.time()
     print(f"Time taken: {end - start:.2f} seconds")
+
 
 current_chat = {
     "question": "Can you give me examples of applications built with LangChain?",
@@ -56,26 +58,9 @@ def test_chain_async():
     asyncio.run(print_stream(request))
 
 
-def test_chain_without_memory():
-    for chunk in chain_without_memory.stream_log(request):
-        print(chunk, end="\n", flush=True)
-
-
-def test_chain_without_memory_async():
-    async def print_stream(request):
-        async for chunk in chain_without_memory.astream_log(request):
-            print(chunk, end="\n", flush=True)
-
-    asyncio.run(print_stream(request))
-
-
 if __name__ == "__main__":
-    # with timeit():
-    #     test_chain()
-    # with timeit():
-    #     test_chain_async()
     with timeit():
-        test_chain_without_memory()
+        test_chain()
     with timeit():
-        test_chain_without_memory_async()
+        test_chain_async()
     print("Done")

@@ -2,7 +2,7 @@ import asyncio
 import json
 import time
 from fastapi.responses import StreamingResponse
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 import uvicorn
 
 app = FastAPI()
@@ -53,6 +53,7 @@ async def dummy_async_iterator(iterable):
         await asyncio.sleep(0.1)  # Simulate an asynchronous operation
         yield f"event: data\ndata: {item}\n\n"
     yield "event: end\n"
+
 
 def post_processing(op, path, chunk):
     return json.dumps(

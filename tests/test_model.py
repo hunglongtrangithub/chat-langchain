@@ -1,22 +1,20 @@
-from threading import Thread
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-    TextIteratorStreamer,
-    pipeline,
-)
 import sys
 from pathlib import Path
+import asyncio
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from custom_chat_model import CustomChatModel, CustomModel
+from custom_chat_model import (
+    CustomChatHuggingFace,
+    CustomChatLlamaReplicate,
+    CustomChatOpenAI,
+)
 
-# checkpoint = "facebook/opt-125m"
-checkpoint = "meta-llama/Llama-2-7b-chat-hf"
+checkpoint = "facebook/opt-125m"
+# checkpoint = "meta-llama/Llama-2-7b-chat-hf"
 
 
-def test_chat_model(stream=False):
-    model = CustomChatModel(checkpoint)
+def test_hf_model():
+    model = CustomChatHuggingFace(checkpoint)
     messages = [
         {
             "role": "system",
@@ -24,29 +22,113 @@ def test_chat_model(stream=False):
         },
         {
             "role": "user",
-            "content": "How many helicopters can a human eat in one sitting? " * 1000,
+            "content": "An increasing sequence from 1 to 10:",
         },
     ]
-    if not stream:
-        print(model.invoke(messages))
-    else:
-        for token in model.stream(messages):
+    print("Invoke:")
+    print(model.invoke(messages))
+
+    print("Stream:")
+    for token in model.stream(messages):
+        print(token, end="", flush=True)
+    print()
+
+    print("Invoke with async:")
+
+    async def invoke_async():
+        print(await model.ainvoke(messages))
+
+    asyncio.run(invoke_async())
+
+    print("Stream with async:")
+
+    async def stream_async():
+        async for token in model.astream(messages):
             print(token, end="", flush=True)
+        print()
+
+    asyncio.run(stream_async())
 
 
-def test_model(stream=False):
-    model = CustomModel(checkpoint)
-    input_text = "How many helicopters can a human eat in one sitting? " * 1000
-    if not stream:
-        print(model.invoke(input_text))
-    else:
-        for token in model.stream(input_text):
+def test_llama_model(stream=False):
+    model = CustomChatLlamaReplicate(checkpoint)
+    messages = [
+        {
+            "role": "system",
+            "content": "You are a friendly chatbot who always responds in the style of a pirate",
+        },
+        {
+            "role": "user",
+            "content": "An increasing sequence from 1 to 10:",
+        },
+    ]
+    print("Invoke:")
+    print(model.invoke(messages))
+
+    print("Stream:")
+    for token in model.stream(messages):
+        print(token, end="", flush=True)
+    print()
+
+    print("Invoke with async:")
+
+    async def invoke_async():
+        print(await model.ainvoke(messages))
+
+    asyncio.run(invoke_async())
+
+    print("Stream with async:")
+
+    async def stream_async():
+        async for token in model.astream(messages):
             print(token, end="", flush=True)
+        print()
+
+    asyncio.run(stream_async())
+
+
+def test_openai_model(stream=False):
+    model = CustomChatOpenAI()
+    messages = [
+        {
+            "role": "system",
+            "content": "You are a friendly chatbot who always responds in the style of a pirate",
+        },
+        {
+            "role": "user",
+            "content": "An increasing sequence from 1 to 10:",
+        },
+    ]
+    print("Invoke:")
+    print(model.invoke(messages))
+
+    print("Stream:")
+    for token in model.stream(messages):
+        print(token, end="", flush=True)
+    print()
+
+    print("Invoke with async:")
+
+    async def invoke_async():
+        print(await model.ainvoke(messages))
+
+    asyncio.run(invoke_async())
+
+    print("Stream with async:")
+
+    async def stream_async():
+        async for token in model.astream(messages):
+            print(token, end="", flush=True)
+        print()
+
+    asyncio.run(stream_async())
 
 
 if __name__ == "__main__":
-    # test_chat_model()
-    # test_chat_model(stream=True)
-    # test_model()
-    test_model(stream=True)
+    print("Testing Hugging Face model")
+    test_hf_model()
+    print("Testing Llama model")
+    # test_llama_model()
+    # print("Testing OpenAI model")
+    # test_openai_model()
     print("All tests passed")
