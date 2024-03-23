@@ -68,32 +68,11 @@ async def astream_generator(subscription):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-def stream_generator(subscription):
-    try:
-        for op, path, chunk in subscription:
-            print(f"op: {op}, path: {path}, chunk: {chunk}")
-            yield f"event: data\ndata: {post_processing(op, path, chunk)}\n\n"
-        yield f"event: end\n\n\n"
-    except asyncio.TimeoutError:
-        raise HTTPException(status_code=504, detail="Stream timed out")
-    except Exception:
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
 @app.post("/chat/astream_log")
 async def achat(request: ChatRequest):
     subscription = chain.astream_log(request)
     return StreamingResponse(
         astream_generator(subscription),
-        media_type="text/event-stream",
-    )
-
-
-@app.post("/chat/stream_log")
-def chat(request: ChatRequest):
-    subscription = chain.stream_log(request)
-    return StreamingResponse(
-        stream_generator(subscription),
         media_type="text/event-stream",
     )
 
@@ -108,7 +87,7 @@ async def aget_trace_url(run_id: str) -> str:
         try:
             await _arun(client.read_run, run_id)
             break
-        except langsmith.utils.LangSmithError:
+        except Exception:
             await asyncio.sleep(1**i)
 
     if await _arun(client.run_is_shared, run_id):
@@ -144,13 +123,12 @@ async def transcribe_audio(
     # save to local file
     upload_folder = Path(__file__).resolve().parent / "audio"
     upload_folder.mkdir(exist_ok=True)
-    file_path = upload_folder / file_name
-    file_path = str(file_path)
+    file_path = str(upload_folder / file_name)
 
     with open(file_path, "wb") as f:
         f.write(file.file.read())
 
-    transcript = transcribe(audio_path=file_path)
+    transcript = await transcribe.arun(audio_path=file_path)
 
     return {"transcript": transcript, "conversationId": conversationId}
 
@@ -161,19 +139,9 @@ async def text_to_speech(request: MessageRequest):
     speech_file_name = request.conversationId + ".mp3"
     upload_folder = Path(__file__).resolve().parent / "audio"
     upload_folder.mkdir(exist_ok=True)
-    speech_file_path = upload_folder / speech_file_name
+    speech_file_path = str(upload_folder / speech_file_name)
 
-    tts(text=text, file_path=speech_file_path)
-
-    # async def delete_file_after_delay(file_path: Path, delay: int = 30):
-    #     # Wait for the delay
-    #     await asyncio.sleep(delay)
-
-    #     # Delete the file
-    #     os.remove(file_path)
-
-    # # Add a background task to delete the file after a delay
-    # background_tasks.add_task(delete_file_after_delay, speech_file_path)
+    await tts.arun(text=text, file_path=speech_file_path)
 
     return FileResponse(speech_file_path)
 

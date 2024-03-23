@@ -1,11 +1,14 @@
 from pathlib import Path
-import asyncio
 
+from langchain.schema.vectorstore import VectorStoreRetriever
 from langchain.vectorstores.faiss import FAISS
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.schema.document import Document
-from custom_chat_model import CustomChatModel, CustomChatOpenAI
-from custom_chat_model import Message
+from custom_chat_model import (
+    CustomChatOpenAI,
+    CustomChatLlamaReplicate,
+    CustomChatHuggingFace,
+)
 from jinja2 import Template
 
 from typing import List, Optional, Dict, Tuple, Union, Generator, AsyncGenerator
@@ -77,14 +80,17 @@ CHAT_TEMPLATE_STRING = """{% for message in messages %}{% if message['human'] is
 
 # CHECKPOINT = "facebook/opt-125m"
 # CHECKPOINT = "meta-llama/Llama-2-70b-chat-hf"
-# chat_llm = CustomChatModel(CHECKPOINT)
+# chat_llm = CustomChatHuggingFace(CHECKPOINT)
 
 # from llm_llama.model_generator.llm_pipeline import load_fine_tuned_model
 # CHECKPOINT = Path(__file__).parent / "llm_llama/Llama-2-7b-chat_peft_128"
 # model, tokenizer = load_fine_tuned_model(CHECKPOINT, peft_model=1)
-# chat_llm = CustomChatModel(model=model, tokenizer=tokenizer)
+# chat_llm = CustomChatHuggingFace(model=model, tokenizer=tokenizer)
+
+# chat_llm = CustomChatLlamaReplicate()
 
 chat_llm = CustomChatOpenAI()
+
 
 NUM_DOCUMENTS = 6
 vectorstore = FAISS.load_local(
@@ -95,13 +101,13 @@ retriever = vectorstore.as_retriever(search_kwargs=dict(k=NUM_DOCUMENTS))
 
 
 class RAGChain:
-    def __init__(self, retriever, chat_llm):
+    def __init__(self, retriever: VectorStoreRetriever, chat_llm):
         self.retriever = retriever
         self.chat_llm = chat_llm
 
     def format_chat_history(
         self, chat_history: Optional[List[Dict[str, str]]]
-    ) -> List[Message]:
+    ) -> List[Dict[str, str]]:
         if not chat_history:
             return []
         formatted_chat_history = []
@@ -115,9 +121,6 @@ class RAGChain:
             formatted_chat_history.append(human_message)
             formatted_chat_history.append(ai_message)
 
-        formatted_chat_history = [
-            Message(**message) for message in formatted_chat_history
-        ]
         return formatted_chat_history
 
     async def aretrieve_documents(self, request: ChatRequest) -> List[Document]:
@@ -131,11 +134,10 @@ class RAGChain:
             rephrase_question_prompt = REPHRASE_TEMPLATE.format(
                 chat_history=serialized_chat_history, question=question
             )
-            rephrased_question = self.chat_llm(
-                [Message(role="user", content=rephrase_question_prompt)],
-                stream=False,
-            ).strip()
-            question = rephrased_question
+            rephrased_question = await self.chat_llm.ainvoke(
+                [{"role": "user", "content": rephrase_question_prompt}],
+            )
+            question = rephrased_question.strip()
 
         docs = await retriever.aget_relevant_documents(question)
         return docs
@@ -151,9 +153,8 @@ class RAGChain:
             rephrase_question_prompt = REPHRASE_TEMPLATE.format(
                 chat_history=serialized_chat_history, question=question
             )
-            rephrased_question = self.chat_llm(
-                [Message(role="user", content=rephrase_question_prompt)],
-                stream=False,
+            rephrased_question = self.chat_llm.invoke(
+                [{"role": "user", "content": rephrase_question_prompt}],
             ).strip()
             question = rephrased_question
 
@@ -170,113 +171,51 @@ class RAGChain:
         system_prompt = SYSTEM_TEMPLATE.format(context=serialized_docs)
         formatted_chat_history = self.format_chat_history(request.chat_history)
         current_conversation = [
-            Message(role="system", content=system_prompt),
+            {"role": "system", "content": system_prompt},
             *formatted_chat_history,
-            Message(role="user", content=request.question),
+            {"role": "user", "content": request.question},
         ]
 
-        text_streamer = self.chat_llm(current_conversation, stream=True)
+        text_streamer = self.chat_llm.stream(current_conversation)
         return text_streamer
 
-    async def astream_log(
-        self, request: ChatRequest
-    ) -> AsyncGenerator[Tuple[str, str, Union[Dict, str, List]], None]:
-        yield "replace", "", {}
-
-        docs = await self.aretrieve_documents(request)
-        formatted_docs = [doc.json() for doc in docs]
-        yield "add", "/logs", {}
-        yield "add", "/logs/FindDocs", {}
-        yield "add", "/logs/FindDocs/final_output", {"output": formatted_docs}
-
-        text_streamer = self.get_response_streamer_with_docs(request, docs)
-        response = ""
-        yield "add", "/streamed_output", []
-        for chunk in text_streamer:
-            response += chunk
-            yield "add", "/streamed_output/-", chunk
-
-        yield "replace", "/final_output", {"output": response}
-
-    def stream_log(
-        self, request: ChatRequest
-    ) -> Generator[Tuple[str, str, Union[Dict, str, List]], None, None]:
-        docs = self.retrieve_documents(request)
-        formatted_docs = [doc.json() for doc in docs]
-        text_streamer = self.get_response_streamer_with_docs(request, docs)
-
-        yield "replace", "", {}
-        yield "add", "/logs", {}
-        yield "add", "/logs/FindDocs", {}
-        yield "add", "/logs/FindDocs/final_output", {"output": formatted_docs}
-
-        response = ""
-        yield "add", "/streamed_output", []
-        for chunk in text_streamer:
-            response += chunk
-            yield "add", "/streamed_output/-", chunk
-
-        yield "replace", "/final_output", {"output": response}
-
-
-class RAGWithoutMemoryChain:
-    def __init__(self, retriever, chat_llm):
-        self.retriever = retriever
-        self.chat_llm = chat_llm
-
-    async def aretrieve_documents(self, request: ChatRequest) -> List[Document]:
-        question = request.question
-        docs = await retriever.aget_relevant_documents(question)
-        return docs
-
-    def retrieve_documents(self, request: ChatRequest) -> List[Document]:
-        question = request.question
-        docs = retriever.get_relevant_documents(question)
-        return docs
-
-    def get_response_streamer_with_docs(
+    def aget_response_streamer_with_docs(
         self, request: ChatRequest, docs: List[Document]
-    ) -> Generator[str, None, None]:
-        serialized_docs = "\n".join([f"<doc id='{i}'>{doc.page_content}</doc>" for i, doc in enumerate(docs)])
-
-        system_prompt = SYSTEM_TEMPLATE.format(context=serialized_docs)
-        current_conversation = [
-            Message(role="system", content=system_prompt),
-            Message(role="user", content=request.question),
-        ]
-
-        text_streamer = self.chat_llm(current_conversation, stream=True)
-        return text_streamer
-
-    async def _arun(self, func, *args, **kwargs):
-        """Run a synchronous function in the background thread pool."""
-        loop = asyncio.get_running_loop()
-        # None uses the default executor (ThreadPoolExecutor)
-        return await loop.run_in_executor(None, func, *args, **kwargs)
-    
-    async def aget_response_streamer_with_docs(self, request, docs):
-
-        # Execute the synchronous function in a separate thread
-        # and wait for it to complete without blocking the event loop.
-        sync_generator = await self._arun(
-            self.get_response_streamer_with_docs, request, docs
+    ) -> AsyncGenerator[str, None]:
+        serialized_docs = "\n".join(
+            [f"<doc id='{i}'>{doc.page_content}</doc>" for i, doc in enumerate(docs)]
         )
 
-        # Now, adapt the synchronous generator for asynchronous iteration
-        async def async_generator_wrapper(sync_gen):
-            while True:
-                try:
-                    # Run the next() operation of the sync generator in a separate thread
-                    item = await self._arun(next, sync_gen, StopIteration)
-                    # If StopIteration is used as a sentinel value by _arun to indicate completion
-                    if item is StopIteration:
-                        break
-                    yield item
-                except StopIteration:
-                    # Break the loop if the generator is exhausted
-                    break
+        system_prompt = SYSTEM_TEMPLATE.format(context=serialized_docs)
+        formatted_chat_history = self.format_chat_history(request.chat_history)
+        current_conversation = [
+            {"role": "system", "content": system_prompt},
+            *formatted_chat_history,
+            {"role": "user", "content": request.question},
+        ]
 
-        return async_generator_wrapper(sync_generator)
+        text_streamer = self.chat_llm.astream(current_conversation)
+        return text_streamer
+
+    async def astream_log(
+        self, request: ChatRequest
+    ) -> AsyncGenerator[Tuple[str, str, Union[Dict, str, List]], None]:
+        yield "replace", "", {}
+
+        docs = await self.aretrieve_documents(request)
+        formatted_docs = [doc.json() for doc in docs]
+        yield "add", "/logs", {}
+        yield "add", "/logs/FindDocs", {}
+        yield "add", "/logs/FindDocs/final_output", {"output": formatted_docs}
+
+        text_streamer = self.aget_response_streamer_with_docs(request, docs)
+        response = ""
+        yield "add", "/streamed_output", []
+        async for chunk in text_streamer:
+            response += chunk
+            yield "add", "/streamed_output/-", chunk
+
+        yield "replace", "/final_output", {"output": response}
 
     def stream_log(
         self, request: ChatRequest
@@ -293,28 +232,6 @@ class RAGWithoutMemoryChain:
         response = ""
         yield "add", "/streamed_output", []
         for chunk in text_streamer:
-            response += chunk
-            yield "add", "/streamed_output/-", chunk
-
-        yield "replace", "/final_output", {"output": response}
-
-    async def astream_log(
-        self, request: ChatRequest
-    ) -> AsyncGenerator[Tuple[str, str, Union[Dict, str, List]], None]:
-        yield "replace", "", {}
-
-        # Retrieve documents first
-        docs = await self.aretrieve_documents(request)
-        formatted_docs = [doc.json() for doc in docs]
-        yield "add", "/logs", {}
-        yield "add", "/logs/FindDocs", {}
-        yield "add", "/logs/FindDocs/final_output", {"output": formatted_docs}
-
-        # Use the asynchronous version to get the response streamer with the retrieved docs
-        # Assuming get_response_streamer_with_docs_async is an async generator
-        response = ""
-        yield "add", "/streamed_output", []
-        async for chunk in await self.aget_response_streamer_with_docs(request, docs):
             response += chunk
             yield "add", "/streamed_output/-", chunk
 
@@ -322,4 +239,3 @@ class RAGWithoutMemoryChain:
 
 
 chain = RAGChain(retriever, chat_llm)
-# chain_without_memory = RAGWithoutMemoryChain(retriever, chat_llm)
