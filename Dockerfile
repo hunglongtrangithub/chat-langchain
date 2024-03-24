@@ -14,15 +14,22 @@ RUN apt-get update && \
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python${PYTHON_VERSION} 1 && \
   update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
 
-# Install FastAPI and Uvicorn
-RUN pip install fastapi uvicorn
+RUN poetry config virtualenvs.create false
 
-# Copy only the necessary app files
+COPY ./pyproject.toml ./poetry.lock* ./
+RUN cat pyproject.toml
+RUN poetry install --no-interaction --no-ansi --no-root --no-directory
+RUN poetry show fastapi
 WORKDIR /app
-COPY ./main.py ./main.py
 
-RUN pip list | grep fastapi
+COPY ./*.py ./
 
-# Command to run upon container start
+COPY ./faiss_index ./faiss_index
+
+# automating agreement to the terms and conditions of the coqui TTS model
+COPY ./expect.exp ./
+RUN chmod +x ./expect.exp
+
+# COPY ./.env ./
+
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
-
