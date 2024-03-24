@@ -122,7 +122,7 @@ class ReplicateTortoiseTTS:
             f.write(r.content)
 
 
-tts = ReplicateTortoiseTTS()
+tts = OpenAITTS()
 
 
 if __name__ == "__main__":

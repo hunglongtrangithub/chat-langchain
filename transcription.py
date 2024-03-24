@@ -71,10 +71,10 @@ class OpenAIWhisperSTT:
             model="whisper-1",
             file=audio,
         )
-        return transcription["text"]  # type: ignore
+        return transcription.text
 
 
-transcribe = ReplicateWhisperSTT()
+transcribe = OpenAIWhisperSTT()
 
 
 if __name__ == "__main__":
