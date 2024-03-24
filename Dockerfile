@@ -21,6 +21,8 @@ RUN pip install fastapi uvicorn
 WORKDIR /app
 COPY ./main.py ./main.py
 
+RUN pip list | grep fastapi
+
 # Command to run upon container start
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
 
