@@ -2,7 +2,7 @@ from pathlib import Path
 
 from langchain.schema.vectorstore import VectorStoreRetriever
 from langchain.vectorstores.faiss import FAISS
-from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain.schema.document import Document
 from custom_chat_model import chat_llm
 

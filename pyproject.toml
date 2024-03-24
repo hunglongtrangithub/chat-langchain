@@ -14,7 +14,7 @@ langchain = "^0.1.12"
 langsmith = "^0.1.25"
 uvicorn = "^0.23.2"
 beautifulsoup4 = "^4.12.2"
-tiktoken = "^0.4.0"
+tiktoken = "^0.5.2"
 lxml = "^4.9.3"
 langserve = {extras = ["server"], version = "^0.0.39"}
 voyageai = "^0.1.4"
@@ -33,6 +33,7 @@ cutlet = "^0.3.0"
 mecab-python3 = "^1.0.8"
 unidic-lite = "^1.0.8"
 replicate = "^0.25.1"
+langchain-openai = "^0.1.1"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.9.1"

@@ -7,7 +7,7 @@ from parse import langchain_docs_extractor
 
 from bs4 import BeautifulSoup, SoupStrainer
 from langchain.document_loaders import RecursiveUrlLoader, SitemapLoader
-from langchain.embeddings import OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain.schema.embeddings import Embeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.utils.html import PREFIXES_TO_IGNORE_REGEX, SUFFIXES_TO_IGNORE_REGEX
