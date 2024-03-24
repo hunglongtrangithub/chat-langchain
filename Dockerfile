@@ -36,4 +36,4 @@ RUN chmod +x ./expect.exp
 
 # COPY ./.env ./
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["poetry", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
