@@ -42,7 +42,7 @@ WORKDIR /app
 
 COPY ./*.py ./
 
-# COPY ./faiss_index ./faiss_index
+COPY ./faiss_index ./faiss_index
 
 RUN poetry install  --no-interaction --no-ansi
 
