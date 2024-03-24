@@ -19,14 +19,14 @@ RUN pip install poetry==1.5.1
 RUN poetry config virtualenvs.create false
 
 COPY ./pyproject.toml ./poetry.lock* ./
-RUN cat pyproject.toml
-RUN poetry install --no-interaction --no-ansi --no-root
-RUN poetry show fastapi
+
+RUN poetry install --no-interaction --no-ansi 
+
+RUN poetry run python check_fastapi.py
+
 WORKDIR /app
 
 COPY ./*.py ./
-
-RUN poetry install  --no-interaction --no-ansi
 
 COPY ./faiss_index ./faiss_index
 
