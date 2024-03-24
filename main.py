@@ -4,13 +4,12 @@ import asyncio
 from typing import Optional, Union
 from uuid import UUID, uuid4
 
-import langsmith
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 # from langserve import add_routes
-import langsmith
+# import langsmith
 from langsmith import Client
 
 from pydantic import BaseModel
