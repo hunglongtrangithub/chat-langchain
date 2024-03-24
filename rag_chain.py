@@ -80,6 +80,7 @@ NUM_DOCUMENTS = 6
 vectorstore = FAISS.load_local(
     str(Path(__file__).parent / "faiss_index"),
     embeddings=OpenAIEmbeddings(chunk_size=200),
+    allow_dangerous_deserialization=True,
 )
 retriever = vectorstore.as_retriever(search_kwargs=dict(k=NUM_DOCUMENTS))
 
