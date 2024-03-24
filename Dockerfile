@@ -22,11 +22,11 @@ COPY ./pyproject.toml ./poetry.lock* ./
 
 RUN poetry install --no-interaction --no-ansi 
 
-RUN poetry run python check_fastapi.py
-
 WORKDIR /app
 
 COPY ./*.py ./
+
+RUN poetry run python check_fastapi.py
 
 COPY ./faiss_index ./faiss_index
 
