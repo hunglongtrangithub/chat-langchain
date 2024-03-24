@@ -35,9 +35,9 @@ RUN pip install poetry==1.5.1
 RUN poetry config virtualenvs.create false
 
 COPY ./pyproject.toml ./poetry.lock* ./
-RUN cat pyproject.toml
-RUN poetry install --no-interaction --no-ansi --no-root --no-directory
-RUN poetry show fastapi
+
+RUN poetry install --no-interaction --no-ansi --no-root
+
 WORKDIR /app
 
 COPY ./*.py ./
@@ -50,4 +50,4 @@ RUN chmod +x ./expect.exp
 
 # COPY ./.env ./
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["poetry", "run", "python", "main.py"]
