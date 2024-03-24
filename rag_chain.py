@@ -4,11 +4,8 @@ from langchain.schema.vectorstore import VectorStoreRetriever
 from langchain.vectorstores.faiss import FAISS
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.schema.document import Document
-from custom_chat_model import (
-    CustomChatOpenAI,
-    CustomChatLlamaReplicate,
-    CustomChatHuggingFace,
-)
+from custom_chat_model import chat_llm
+
 from jinja2 import Template
 
 from typing import List, Optional, Dict, Tuple, Union, Generator, AsyncGenerator
@@ -77,19 +74,6 @@ Standalone Question:"""
 
 
 CHAT_TEMPLATE_STRING = """{% for message in messages %}{% if message['human'] is defined %}Human: {{ message['human'] }}\n{% endif %}{% if message['ai'] is defined %}AI: {{ message['ai'] }}\n{% endif %}{% endfor %}"""
-
-# CHECKPOINT = "facebook/opt-125m"
-# CHECKPOINT = "meta-llama/Llama-2-70b-chat-hf"
-# chat_llm = CustomChatHuggingFace(CHECKPOINT)
-
-# from llm_llama.model_generator.llm_pipeline import load_fine_tuned_model
-# CHECKPOINT = Path(__file__).parent / "llm_llama/Llama-2-7b-chat_peft_128"
-# model, tokenizer = load_fine_tuned_model(CHECKPOINT, peft_model=1)
-# chat_llm = CustomChatHuggingFace(model=model, tokenizer=tokenizer)
-
-# chat_llm = CustomChatLlamaReplicate()
-
-chat_llm = CustomChatOpenAI()
 
 
 NUM_DOCUMENTS = 6
