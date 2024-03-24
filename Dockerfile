@@ -20,11 +20,13 @@ RUN poetry config virtualenvs.create false
 
 COPY ./pyproject.toml ./poetry.lock* ./
 RUN cat pyproject.toml
-RUN poetry install --no-interaction --no-ansi --no-root --no-directory
+RUN poetry install --no-interaction --no-ansi --no-root
 RUN poetry show fastapi
 WORKDIR /app
 
 COPY ./*.py ./
+
+RUN poetry install  --no-interaction --no-ansi
 
 COPY ./faiss_index ./faiss_index
 
