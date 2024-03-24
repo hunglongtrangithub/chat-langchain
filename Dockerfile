@@ -44,8 +44,6 @@ COPY ./*.py ./
 
 COPY ./faiss_index ./faiss_index
 
-RUN poetry install  --no-interaction --no-ansi
-
 # automating agreement to the terms and conditions of the coqui TTS model
 COPY ./expect.exp ./
 RUN chmod +x ./expect.exp
