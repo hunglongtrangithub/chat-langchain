@@ -50,6 +50,6 @@ RUN poetry install  --no-interaction --no-ansi
 COPY ./expect.exp ./
 RUN chmod +x ./expect.exp
 
-COPY ./.env ./
+# COPY ./.env ./
 
 CMD exec uvicorn main:app --host 0.0.0.0 --port 8080
