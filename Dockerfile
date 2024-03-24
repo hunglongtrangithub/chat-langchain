@@ -14,6 +14,8 @@ RUN apt-get update && \
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python${PYTHON_VERSION} 1 && \
   update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
 
+RUN pip install poetry==1.5.1
+
 RUN poetry config virtualenvs.create false
 
 COPY ./pyproject.toml ./poetry.lock* ./
