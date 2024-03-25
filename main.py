@@ -67,13 +67,13 @@ async def astream_generator(subscription):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@app.post("/chat/astream_log")
-async def achat(request: ChatRequest):
-    subscription = chain.astream_log(request)
-    return StreamingResponse(
-        astream_generator(subscription),
-        media_type="text/event-stream",
-    )
+# @app.post("/chat/astream_log")
+# async def achat(request: ChatRequest):
+#     subscription = chain.astream_log(request)
+#     return StreamingResponse(
+#         astream_generator(subscription),
+#         media_type="text/event-stream",
+#     )
 
 
 # TODO: Update when async API is available
