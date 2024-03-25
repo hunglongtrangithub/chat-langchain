@@ -114,35 +114,35 @@ async def get_trace(body: GetTraceBody):
     return await aget_trace_url(str(run_id))
 
 
-@app.post("/transcribe_audio")
-async def transcribe_audio(
-    file: UploadFile = File(...), conversationId: str = Form(...)
-):
-    file_name = file.filename if file.filename else f"{uuid4()}.mp3"
-    # save to local file
-    upload_folder = Path(__file__).resolve().parent / "audio"
-    upload_folder.mkdir(exist_ok=True)
-    file_path = str(upload_folder / file_name)
-
-    with open(file_path, "wb") as f:
-        f.write(file.file.read())
-
-    transcript = await transcribe.arun(audio_path=file_path)
-
-    return {"transcript": transcript, "conversationId": conversationId}
-
-
-@app.post("/text_to_speech")
-async def text_to_speech(request: MessageRequest):
-    text = request.message
-    speech_file_name = request.conversationId + ".mp3"
-    upload_folder = Path(__file__).resolve().parent / "audio"
-    upload_folder.mkdir(exist_ok=True)
-    speech_file_path = str(upload_folder / speech_file_name)
-
-    await tts.arun(text=text, file_path=speech_file_path)
-
-    return FileResponse(speech_file_path)
+# @app.post("/transcribe_audio")
+# async def transcribe_audio(
+#     file: UploadFile = File(...), conversationId: str = Form(...)
+# ):
+#     file_name = file.filename if file.filename else f"{uuid4()}.mp3"
+#     # save to local file
+#     upload_folder = Path(__file__).resolve().parent / "audio"
+#     upload_folder.mkdir(exist_ok=True)
+#     file_path = str(upload_folder / file_name)
+#
+#     with open(file_path, "wb") as f:
+#         f.write(file.file.read())
+#
+#     transcript = await transcribe.arun(audio_path=file_path)
+#
+#     return {"transcript": transcript, "conversationId": conversationId}
+#
+#
+# @app.post("/text_to_speech")
+# async def text_to_speech(request: MessageRequest):
+#     text = request.message
+#     speech_file_name = request.conversationId + ".mp3"
+#     upload_folder = Path(__file__).resolve().parent / "audio"
+#     upload_folder.mkdir(exist_ok=True)
+#     speech_file_path = str(upload_folder / speech_file_name)
+#
+#     await tts.arun(text=text, file_path=speech_file_path)
+#
+#     return FileResponse(speech_file_path)
 
 
 if __name__ == "__main__":
