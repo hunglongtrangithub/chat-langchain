@@ -19,10 +19,10 @@ from dotenv import load_dotenv
 import json
 
 # from chain import ChatRequest, answer_chain
-from rag_chain import ChatRequest, chain
-
-from tts import tts
-from transcription import transcribe
+# from rag_chain import ChatRequest, chain
+#
+# from tts import tts
+# from transcription import transcribe
 
 # TODO: implement env var checking and error handling (add schema + fail fast)
 load_dotenv()
