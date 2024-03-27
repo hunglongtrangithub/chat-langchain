@@ -28,7 +28,7 @@ import { MdMic, MdStop } from "react-icons/md";
 
 import { Source } from "./SourceBubble";
 import { apiBaseUrl } from "../utils/constants";
-console.log("apiBaseUrl:", apiBaseUrl);
+
 export function ChatWindow(props: {
   placeholder?: string;
   titleText?: string;
@@ -86,6 +86,7 @@ export function ChatWindow(props: {
   const { placeholder, titleText = "An LLM" } = props;
 
   const sendMessage = async (message?: string, playAudio: boolean = false) => {
+    console.log("apiBaseUrl:", apiBaseUrl);
     if (messageContainerRef.current) {
       messageContainerRef.current.classList.add("grow");
     }
