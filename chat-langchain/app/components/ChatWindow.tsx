@@ -28,7 +28,7 @@ import { MdMic, MdStop } from "react-icons/md";
 
 import { Source } from "./SourceBubble";
 import { apiBaseUrl } from "../utils/constants";
-
+console.log("apiBaseUrl:", apiBaseUrl);
 export function ChatWindow(props: {
   placeholder?: string;
   titleText?: string;
