@@ -1,19 +1,22 @@
-from pathlib import Path
-
 from langchain.schema.vectorstore import VectorStoreRetriever
 from langchain.vectorstores.faiss import FAISS
 from langchain_openai import OpenAIEmbeddings
 from langchain.schema.document import Document
-from custom_chat_model import chat_llm
 
 from jinja2 import Template
-
+from pathlib import Path
 from typing import List, Optional, Dict, Tuple, Union, Generator, AsyncGenerator
 from pydantic import BaseModel, Field
 
+from logger_config import get_logger
+from custom_chat_model import chat_llm
+
+
+logger = get_logger(__name__)
+
 
 class ChatRequest(BaseModel):
-    question: str = Field(..., example="What's the weather like today?")
+    question: str = Field(..., examples=["What's the weather like today?"])
     chat_history: Optional[List[Dict[str, str]]] = None
 
     class Config:
@@ -73,15 +76,25 @@ Follow Up Input: {question}
 Standalone Question:"""
 
 
-CHAT_TEMPLATE_STRING = """{% for message in messages %}{% if message['human'] is defined %}Human: {{ message['human'] }}\n{% endif %}{% if message['ai'] is defined %}AI: {{ message['ai'] }}\n{% endif %}{% endfor %}"""
-
+CHAT_TEMPLATE_STRING = """{%- for message in messages %}
+{% if message.role == 'user' -%}
+Human: {{- message.content -}}\n
+{%- elif message.role == 'assistant' -%}
+AI: {{- message.content -}}\n
+{%- else -%}
+Unknown Role: {{- message.content -}}\n
+{%- endif %}
+{%- endfor %}"""
 
 NUM_DOCUMENTS = 6
+
+logger.info("Loading FAISS index")
 vectorstore = FAISS.load_local(
     str(Path(__file__).parent / "faiss_index"),
     embeddings=OpenAIEmbeddings(chunk_size=200),
     allow_dangerous_deserialization=True,
 )
+logger.info("FAISS index loaded")
 retriever = vectorstore.as_retriever(search_kwargs=dict(k=NUM_DOCUMENTS))
 
 
@@ -109,41 +122,65 @@ class RAGChain:
         return formatted_chat_history
 
     async def aretrieve_documents(self, request: ChatRequest) -> List[Document]:
-        chat_history = request.chat_history or []
+        chat_history = self.format_chat_history(request.chat_history)
         question = request.question
 
         if chat_history:
-            template = Template(CHAT_TEMPLATE_STRING)
-            serialized_chat_history = template.render(messages=chat_history)
+            try:
+                template = Template(CHAT_TEMPLATE_STRING)
+                serialized_chat_history = template.render(messages=chat_history)
+            except Exception as e:
+                logger.error("Error occurred while applying template to chat history.")
+                serialized_chat_history = ""
 
             rephrase_question_prompt = REPHRASE_TEMPLATE.format(
                 chat_history=serialized_chat_history, question=question
             )
-            rephrased_question = await self.chat_llm.ainvoke(
-                [{"role": "user", "content": rephrase_question_prompt}],
-            )
-            question = rephrased_question.strip()
-
-        docs = await retriever.aget_relevant_documents(question)
+            try:
+                rephrased_question = await self.chat_llm.ainvoke(
+                    [{"role": "user", "content": rephrase_question_prompt}],
+                )
+                question = rephrased_question.strip()
+            except Exception as e:
+                logger.error(
+                    "Error occurred while invoking chat model to rephrase question."
+                )
+        try:
+            docs = await self.retriever.aget_relevant_documents(question)
+        except Exception as e:
+            logger.error("Error occurred while retrieving documents.")
+            docs = []
         return docs
 
     def retrieve_documents(self, request: ChatRequest) -> List[Document]:
-        chat_history = request.chat_history or []
+        chat_history = self.format_chat_history(request.chat_history)
         question = request.question
 
         if chat_history:
-            template = Template(CHAT_TEMPLATE_STRING)
-            serialized_chat_history = template.render(messages=chat_history)
+            try:
+                template = Template(CHAT_TEMPLATE_STRING)
+                serialized_chat_history = template.render(messages=chat_history)
+            except Exception as e:
+                logger.error("Error occurred while applying template to chat history")
+                serialized_chat_history = ""
 
             rephrase_question_prompt = REPHRASE_TEMPLATE.format(
                 chat_history=serialized_chat_history, question=question
             )
-            rephrased_question = self.chat_llm.invoke(
-                [{"role": "user", "content": rephrase_question_prompt}],
-            ).strip()
-            question = rephrased_question
-
-        docs = retriever.get_relevant_documents(question)
+            try:
+                rephrased_question = self.chat_llm.invoke(
+                    [{"role": "user", "content": rephrase_question_prompt}],
+                )
+                question = rephrased_question.strip()
+            except Exception as e:
+                logger.error(
+                    "Error occurred while invoking chat model to rephrase question",
+                )
+        try:
+            docs = self.retriever.get_relevant_documents(question)
+        except Exception as e:
+            logger.error("Error occurred while retrieving documents.")
+            docs = []
         return docs
 
     def get_response_streamer_with_docs(
@@ -160,9 +197,12 @@ class RAGChain:
             *formatted_chat_history,
             {"role": "user", "content": request.question},
         ]
-
-        text_streamer = self.chat_llm.stream(current_conversation)
-        return text_streamer
+        try:
+            text_streamer = self.chat_llm.stream(current_conversation)
+            return text_streamer
+        except Exception as e:
+            logger.error("Error occurred while streaming response")
+            yield ""
 
     def aget_response_streamer_with_docs(
         self, request: ChatRequest, docs: List[Document]
@@ -178,9 +218,16 @@ class RAGChain:
             *formatted_chat_history,
             {"role": "user", "content": request.question},
         ]
+        try:
+            text_streamer = self.chat_llm.astream(current_conversation)
+            return text_streamer
+        except Exception as e:
+            logger.error("Error occurred while streaming response")
 
-        text_streamer = self.chat_llm.astream(current_conversation)
-        return text_streamer
+            async def empty_streamer():
+                yield ""
+
+            return empty_streamer()
 
     async def astream_log(
         self, request: ChatRequest

@@ -1,9 +1,11 @@
 import sys
 from pathlib import Path
+import os
 
+os.chdir(Path(__file__).parent.parent)
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import asyncio
-from rag_chain import ChatRequest, chain, chain_without_memory
+from rag_chain import ChatRequest, chain
 import time
 from contextlib import contextmanager
 
@@ -59,8 +61,8 @@ def test_chain_async():
 
 
 if __name__ == "__main__":
-    with timeit():
-        test_chain()
+    # with timeit():
+    #     test_chain()
     with timeit():
         test_chain_async()
     print("Done")
