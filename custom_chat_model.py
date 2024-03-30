@@ -2,15 +2,23 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     TextIteratorStreamer,
-    pipeline,
 )
+from huggingface_hub import login
 import torch
-from openai import OpenAI, AsyncOpenAI
+import openai
 import replicate
+
 from threading import Thread
 from typing import Dict, AsyncGenerator, Generator, Optional, Union, List
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from jinja2.exceptions import TemplateError
+
+from logger_config import get_logger
+from config import settings
+
+
+logger = get_logger(__name__)
 
 
 class CustomChatHuggingFace:
@@ -32,55 +40,62 @@ class CustomChatHuggingFace:
         tokenizer=None,
         generation_kwargs: Optional[Dict[str, Union[int, bool, float]]] = None,
     ):
-        if torch.cuda.is_available():
-            self.device = "cuda"
-        elif torch.backends.mps.is_available():
-            self.device = "mps"
-        else:
-            self.device = "cpu"
-        self.tokenizer = (
-            AutoTokenizer.from_pretrained(checkpoint) if not tokenizer else tokenizer
-        )
-        self.model = (
-            AutoModelForCausalLM.from_pretrained(checkpoint, device_map="auto")
-            if not model
-            else model
-        )
-        self.pipe = pipeline(
-            "text-generation",
-            model=self.model,
-            tokenizer=self.tokenizer,
-            device_map="auto",
-        )
+        self._huggingface_login()
+        self.device = self._determine_device()
+        try:
+            self.tokenizer = (
+                AutoTokenizer.from_pretrained(checkpoint)
+                if not tokenizer
+                else tokenizer
+            )
+        except Exception as e:
+            logger.error(f"Failed to load tokenizer: {e}")
+            raise
+        try:
+            self.model = (
+                AutoModelForCausalLM.from_pretrained(checkpoint, device_map="auto")
+                if not model
+                else model
+            )
+        except Exception as e:
+            logger.error(f"Failed to load model: {e}")
+            raise
         self.max_length = 512  # can modify this to be the max length of the model
         self.generation_kwargs = generation_kwargs or self.default_generation_kwargs
-        # Executor for running synchronous methods asynchronously
         self.executor = ThreadPoolExecutor()
 
-        print("CustomChatModel initialized.")
-        print(
-            "Device:",
-            (
-                str(torch.cuda.device_count()) + " gpus"
-                if torch.cuda.is_available()
-                else self.device
-            ),
-        )
-        print("Checkpoint:", checkpoint)
+        logger.info("CustomChatHuggingFace initialized.")
+        logger.info("Initialized on device: {}".format(self.device))
+        logger.info("Checkpoint: {}".format(checkpoint))
+
+    def _huggingface_login(self):
+        token = settings.hf_token
+        login(token=token)
+
+    def _determine_device(self):
+        if torch.cuda.is_available():
+            return "cuda"
+        elif torch.backends.mps.is_available():
+            return "mps"
+        else:
+            return "cpu"
 
     def invoke(self, current_conversation: List[Dict[str, str]]) -> str:
-        chat_history = self.tokenizer.apply_chat_template(
-            current_conversation,
-            tokenize=False,
-            add_generation_prompt=True,
-            return_tensors="pt",
-        )
+        try:
+            chat_history = self.tokenizer.apply_chat_template(
+                current_conversation,
+                tokenize=False,
+                add_generation_prompt=True,
+                return_tensors="pt",
+            )
+        except TemplateError as e:
+            logger.error(f"Error applying chat template: {e}")
+            raise
 
         tokenized_chat_history = self.tokenizer(
             text=chat_history, return_tensors="pt"
         ).to(self.device)
 
-        # truncate inputs to max_length of model (take the last self.max_length tokens)
         tokenized_chat_history["input_ids"] = tokenized_chat_history["input_ids"][
             :, -self.max_length :
         ]
@@ -88,20 +103,24 @@ class CustomChatHuggingFace:
             "attention_mask"
         ][:, -self.max_length :]
 
-        # get the size of the prompt
         prompt_size = tokenized_chat_history["input_ids"].shape[1]
-        # print("Prompt size:", prompt_size)
-
-        generated_tokens = self.model.generate(
-            **tokenized_chat_history,
-            **self.generation_kwargs,
-        )
-
-        # skip the prompt tokens and decode the rest
-        response = self.tokenizer.decode(
-            generated_tokens[:, prompt_size:][0], skip_special_tokens=True
-        )
-        return response
+        try:
+            generated_tokens = self.model.generate(
+                **tokenized_chat_history,
+                **self.generation_kwargs,
+            )
+            # skip the prompt tokens and decode the rest
+            response = self.tokenizer.decode(
+                generated_tokens[:, prompt_size:][0], skip_special_tokens=True
+            )
+            return response
+        except Exception as e:
+            logger.error(
+                f"Error generating tokens: {e}",
+                exc_info=True,
+                stack_info=True,
+            )
+            raise
 
     def stream(
         self, current_conversation: List[Dict[str, str]]
@@ -120,7 +139,6 @@ class CustomChatHuggingFace:
             text=chat_history, return_tensors="pt"
         ).to(self.device)
 
-        # truncate inputs to max_length of model (take the last self.max_length tokens)
         tokenized_chat_history["input_ids"] = tokenized_chat_history["input_ids"][
             :, -self.max_length :
         ]
@@ -139,19 +157,38 @@ class CustomChatHuggingFace:
         thread.start()
 
         def generator():
-            for new_text in streamer:
-                yield new_text
-            thread.join()
+            try:
+                for new_text in streamer:
+                    yield new_text
+            except Exception as e:
+                logger.error(
+                    f"Error in stream generator: {e}",
+                    exc_info=True,
+                    stack_info=True,
+                )
+                raise
+            finally:
+                thread.join()
 
         return generator()
 
     async def ainvoke(self, current_conversation: list[dict[str, str]]) -> str:
         loop = asyncio.get_running_loop()
-        # offload the synchronous invoke method to the executor to run it in a separate thread
-        response = await loop.run_in_executor(
-            self.executor, self.invoke, current_conversation
-        )
-        return response
+        try:
+            # offload the synchronous invoke method to the executor to run it in a separate thread
+            response = await loop.run_in_executor(
+                self.executor, self.invoke, current_conversation
+            )
+            return response
+        except asyncio.CancelledError:
+            logger.info("ainvoke method was cancelled.")
+            raise
+        except Exception as e:
+            logger.error(f"Error in ainvoke method: {e}")
+            raise
+        finally:
+            logger.info("Shutting down executor.")
+            self.executor.shutdown(wait=False)
 
     async def astream(
         self, current_conversation: list[dict[str, str]]
@@ -162,65 +199,124 @@ class CustomChatHuggingFace:
         queue = asyncio.Queue()
 
         def background_task():
-            for item in self.stream(current_conversation):
-                loop.call_soon_threadsafe(queue.put_nowait, item)
-            loop.call_soon_threadsafe(queue.put_nowait, None)  # Signal completion
+            try:
+                for item in self.stream(current_conversation):
+                    loop.call_soon_threadsafe(queue.put_nowait, item)
+            except Exception as e:
+                logger.error(
+                    f"Error in background task: {e}",
+                    exc_info=True,
+                    stack_info=True,
+                )
+                loop.call_soon_threadsafe(queue.put_nowait, e)
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait, None)  # Signal completion
 
         # Start the synchronous generator in a separate thread
-        loop.run_in_executor(self.executor, background_task)
+        bg_task = loop.run_in_executor(self.executor, background_task)
 
         # Async generator to yield items back in the async context
-        while True:
-            item = await queue.get()
-            if item is None:
-                break
-            yield item
+        try:
+            while True:
+                item = await queue.get()
+                if item is None:
+                    break
+                if isinstance(item, Exception):
+                    raise item
+                yield item
+        finally:
+            # If the generator exits for any reason, ensure the background task is cancelled
+            if not bg_task.done():
+                bg_task.cancel()
+                try:
+                    await bg_task  # Await the task to allow cancellation to propagate
+                except asyncio.CancelledError:
+                    pass  # Expected, since we're cancelling the task
 
 
 class CustomChatOpenAI:
     def __init__(self, model_name: str = "gpt-3.5-turbo"):
-        self.client = OpenAI()
-        self.async_client = AsyncOpenAI()
+        self.api_key = self._get_openai_api_key()
+        self.client = openai.OpenAI(api_key=self.api_key)
+        self.async_client = openai.AsyncOpenAI(api_key=self.api_key)
         self.model_name = model_name
-        print("CustomChatOpenAI initialized.")
+        logger.info("CustomChatOpenAI initialized.")
+
+    def _get_openai_api_key(self):
+        openai_api_key = settings.openai_api_key
+        return openai_api_key
+
+    def _handle_api_error(self, e: Exception):
+        """Centralized error handling for OpenAI API errors."""
+        if isinstance(e, openai.APITimeoutError):
+            logger.error("The request took too long: %s", e)
+        elif isinstance(e, openai.APIConnectionError):
+            logger.error(
+                "Request could not reach the OpenAI API servers or establish a secure connection: %s",
+                e,
+            )
+        elif isinstance(e, openai.AuthenticationError):
+            logger.error("API key or token is invalid, expired, or revoked: %s", e)
+        elif isinstance(e, openai.InternalServerError):
+            logger.error("OpenAI API internal server error: %s", e)
+        elif isinstance(e, openai.RateLimitError):
+            logger.error("Rate limit reached: %s", e)
+        else:
+            logger.error("An unexpected error occurred: %s", e)
 
     def invoke(self, current_conversation: List[Dict[str, str]]) -> str:
-        completion = self.client.chat.completions.create(
-            model=self.model_name,
-            messages=current_conversation,  # type: ignore
-        )
-        return completion.choices[0].message.content or ""
+        try:
+            completion = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=current_conversation,  # type: ignore
+            )
+            return completion.choices[0].message.content or ""
+        except Exception as e:
+            self._handle_api_error(e)
+            raise
 
     def stream(
         self, current_conversation: List[Dict[str, str]]
     ) -> Generator[str, None, None]:
-        completion = self.client.chat.completions.create(
-            model=self.model_name,
-            messages=current_conversation,  # type: ignore
-            stream=True,
-        )
-        for chunk in completion:
-            token = chunk.choices[0].delta.content or ""
-            yield token
+        try:
+            completion = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=current_conversation,  # type: ignore
+                stream=True,
+            )
+            for chunk in completion:
+                token = chunk.choices[0].delta.content or ""
+                yield token
+        except Exception as e:
+            self._handle_api_error(e)
+            raise
 
     async def ainvoke(self, current_conversation: List[Dict[str, str]]) -> str:
-        completion = await self.async_client.chat.completions.create(
-            model=self.model_name,
-            messages=current_conversation,  # type: ignore
-        )
-        return completion.choices[0].message.content or ""
+        try:
+            completion = await self.async_client.chat.completions.create(
+                model=self.model_name,
+                messages=current_conversation,  # type: ignore
+            )
+            return completion.choices[0].message.content or ""
+        except Exception as e:
+            self._handle_api_error(e)
+            raise
 
     async def astream(
         self, current_conversation: List[Dict[str, str]]
     ) -> AsyncGenerator[str, None]:
-        completion = await self.async_client.chat.completions.create(
-            model=self.model_name,
-            messages=current_conversation,  # type: ignore
-            stream=True,
-        )
-        async for chunk in completion:
-            token = chunk.choices[0].delta.content or ""
-            yield token
+        try:
+            completion = await self.async_client.chat.completions.create(
+                model=self.model_name,
+                messages=current_conversation,  # type: ignore
+                stream=True,
+            )
+            async for chunk in completion:
+                token = chunk.choices[0].delta.content or ""
+                yield token
+        except Exception as e:
+            self._handle_api_error(e)
+            raise
 
 
 class CustomChatLlamaReplicate:
@@ -228,7 +324,13 @@ class CustomChatLlamaReplicate:
 
     def __init__(self, model_name: str = "meta/llama-2-70b-chat"):
         self.model_name = model_name
-        print("CustomChatLlamaReplicate initilized.")
+        logger.info("CustomChatLlamaReplicate initilized.")
+
+    def _handle_error(self, error: Exception, context: str = ""):
+        if context:
+            logger.error(f"Error during {context}: {error}")
+        else:
+            logger.error(f"Error: {error}")
 
     def process_chat(self, chat: List[Dict[str, str]]):
         system_prompt = (
@@ -258,60 +360,88 @@ class CustomChatLlamaReplicate:
         return "".join(parts)
 
     def invoke(self, current_conversation: List[Dict[str, str]]) -> str:
-        output = replicate.run(
-            self.model_name,
-            input={
-                "prompt": self.process_chat(current_conversation),
-                "max_new_tokens": 512,
-                "temperature": 0.75,
-            },
-        )
-        return "".join(output)
+        try:
+            output = replicate.run(
+                self.model_name,
+                input={
+                    "prompt": self.process_chat(current_conversation),
+                    "max_new_tokens": 512,
+                    "temperature": 0.75,
+                },
+            )
+            return "".join(output)
+        except Exception as e:
+            self._handle_error(e, context="invoke")
+            raise
 
     def stream(
         self, current_conversation: List[Dict[str, str]]
     ) -> Generator[str, None, None]:
-        output = replicate.stream(
-            self.model_name,
-            input={
-                "prompt": self.process_chat(current_conversation),
-                "max_new_tokens": 512,
-                "temperature": 0.75,
-            },
-        )
-        for chunk in output:
-            if chunk.event.value == "output":
-                yield chunk.data
+        try:
+            output = replicate.stream(
+                self.model_name,
+                input={
+                    "prompt": self.process_chat(current_conversation),
+                    "max_new_tokens": 512,
+                    "temperature": 0.75,
+                },
+            )
+            for chunk in output:
+                if chunk.event.value == "output":
+                    yield chunk.data
+                elif chunk.event.value == "error":
+                    logger.error(f"Error in Replicate stream: {chunk.data}")
+                elif chunk.event.value == "done":
+                    logger.info(f"Replicate stream done: {chunk.data or 'successful'}")
+        except Exception as e:
+            self._handle_error(e, context="stream")
+            raise
 
     async def ainvoke(self, current_conversation: List[Dict[str, str]]) -> str:
-        output = await replicate.async_run(
-            self.model_name,
-            input={
-                "prompt": self.process_chat(current_conversation),
-                "max_new_tokens": 512,
-                "temperature": 0.75,
-            },
-        )
-        response = ""
-        async for chunk in output:
-            if chunk.event.value == "output":
-                response += chunk.data
-        return response
+        try:
+            output = await replicate.async_run(
+                self.model_name,
+                input={
+                    "prompt": self.process_chat(current_conversation),
+                    "max_new_tokens": 512,
+                    "temperature": 0.75,
+                },
+            )
+            response = ""
+            async for chunk in output:
+                if chunk.event.value == "output":
+                    response += chunk.data
+                elif chunk.event.value == "error":
+                    logger.error(f"Error in Replicate stream: {chunk.data}")
+                elif chunk.event.value == "done":
+                    logger.info(f"Replicate stream done: {chunk.data or 'successful'}")
+            return response
+        except Exception as e:
+            self._handle_error(e, context="ainvoke")
+            raise
 
     async def astream(
         self, current_conversation: List[Dict[str, str]]
     ) -> AsyncGenerator[str, None]:
-        output = await replicate.async_stream(
-            self.model_name,
-            input={
-                "prompt": self.process_chat(current_conversation),
-                "max_new_tokens": 512,
-                "temperature": 0.75,
-            },
-        )
-        async for chunk in output:
-            if chunk.event.value == "output":
-                yield chunk.data
+        try:
+            output = await replicate.async_stream(
+                self.model_name,
+                input={
+                    "prompt": self.process_chat(current_conversation),
+                    "max_new_tokens": 512,
+                    "temperature": 0.75,
+                },
+            )
+            async for chunk in output:
+                if chunk.event.value == "output":
+                    yield chunk.data
+                elif chunk.event.value == "error":
+                    logger.error(f"Error in Replicate stream: {chunk.data}")
+                elif chunk.event.value == "done":
+                    logger.info(f"Replicate stream done: {chunk.data or 'successful'}")
+        except Exception as e:
+            self._handle_error(e, context="astream")
+            raise
 
 
 # CHECKPOINT = "facebook/opt-125m"
