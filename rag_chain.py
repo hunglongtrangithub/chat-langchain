@@ -145,7 +145,7 @@ class RAGChain:
                 logger.error(
                     "Error occurred while invoking chat model to rephrase question."
                 )
-        docs = await retriever.aget_relevant_documents(question)
+        docs = await self.retriever.aget_relevant_documents(question)
         return docs
 
     def retrieve_documents(self, request: ChatRequest) -> List[Document]:
@@ -172,7 +172,7 @@ class RAGChain:
                 logger.error(
                     "Error occurred while invoking chat model to rephrase question",
                 )
-        docs = retriever.get_relevant_documents(question)
+        docs = self.retriever.get_relevant_documents(question)
         return docs
 
     def get_response_streamer_with_docs(
