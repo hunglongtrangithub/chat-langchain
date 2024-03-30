@@ -52,11 +52,13 @@ async def astream_generator(subscription: AsyncGenerator):
             # HACK: This is a temporary fix to prevent the browser from being unable to handle the stream when it becomes too fast
             await asyncio.sleep(0.01)
     except asyncio.TimeoutError:
-        logger.error("Stream timed out")
-        yield 'event: error\ndata: {"message": "Stream timed out"}\n\n'
+        error_message = "Stream timed out"
+        logger.error(error_message)
+        yield f"event: error\ndata: {error_message}\n\n"
     except Exception as e:
-        logger.error(f"Internal server error")
-        yield f'event: error\ndata: {"message": "Internal server error from endpoint /chat/astream_log: {e}"}\n\n'
+        error_message = f"Internal server error from endpoint /chat/astream_log: {e}"
+        logger.error(error_message)
+        yield f"event: error\ndata: {error_message}\n\n"
     finally:
         await subscription.aclose()
         yield "event: end\n\n\n"
@@ -88,10 +90,11 @@ async def transcribe_audio(
         transcript = await transcribe.arun(audio_path=file_path)
         return {"transcript": transcript}
     except Exception as e:
-        logger.error(f"Error in /transcribe_audio")
+        error_message = f"Internal server error from endpoint /transcribe_audio: {e}"
+        logger.error(error_message)
         raise HTTPException(
             status_code=500,
-            detail=f"Internal server error from endpoint /transcribe_audio: {e}",
+            detail=error_message,
         )
 
 
@@ -112,10 +115,11 @@ async def text_to_speech(request: MessageRequest):
         await tts.arun(text=text, file_path=str(speech_file_path))
         return FileResponse(speech_file_path)
     except Exception as e:
-        logger.error(f"Error in /text_to_speech.")
+        error_message = f"Internal server error from endpoint /text_to_speech: {e}"
+        logger.error(error_message)
         raise HTTPException(
             status_code=500,
-            detail=f"Internal server error from endpoint /text_to_speech: {e}",
+            detail=error_message,
         )
 
 
