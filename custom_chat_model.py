@@ -69,7 +69,7 @@ class CustomChatHuggingFace:
         logger.info("Checkpoint: {}".format(checkpoint))
 
     def _huggingface_login(self):
-        token = settings.hf_token
+        token = settings.hf_token.get_secret_value()
         login(token=token)
 
     def _determine_device(self):
@@ -243,7 +243,7 @@ class CustomChatOpenAI:
         logger.info("CustomChatOpenAI initialized.")
 
     def _get_openai_api_key(self):
-        openai_api_key = settings.openai_api_key
+        openai_api_key = settings.openai_api_key.get_secret_value()
         return openai_api_key
 
     def _handle_api_error(self, e: Exception):
@@ -465,7 +465,7 @@ class CustomChatGroq:
         logger.info("CustomChatGroq initialized.")
 
     def _get_groq_api_key(self):
-        groq_api_key = settings.groq_api_key
+        groq_api_key = settings.groq_api_key.get_secret_value()
         return groq_api_key
 
     def _handle_api_error(self, e: Exception):
