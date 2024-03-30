@@ -11,6 +11,7 @@ class Settings(BaseSettings):  # type: ignore
     langchain_project: str
     replicate_api_token: str
     hf_token: str
+    groq_api_key: str
     port: int
 
     class Config:  # type: ignore

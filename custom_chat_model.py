@@ -7,7 +7,7 @@ from huggingface_hub import login
 import torch
 import openai
 import replicate
-
+import groq
 from threading import Thread
 from typing import Dict, AsyncGenerator, Generator, Optional, Union, List
 import asyncio
@@ -444,6 +444,107 @@ class CustomChatLlamaReplicate:
             raise
 
 
+class CustomChatGroq:
+    default_generation_kwargs = {
+        "temperature": 0.5,
+        "max_tokens": 1024,
+        "top_p": 0.9,
+        "stop": [],
+    }
+
+    def __init__(
+        self,
+        model_name: str = "gemma-7b-it",
+        generation_kwargs: Optional[dict] = None,
+    ):
+        self.api_key = self._get_groq_api_key()
+        self.client = groq.Groq(api_key=self.api_key)
+        self.async_client = groq.AsyncGroq(api_key=self.api_key)
+        self.model_name = model_name
+        self.generation_kwargs = generation_kwargs or self.default_generation_kwargs
+        logger.info("CustomChatGroq initialized.")
+
+    def _get_groq_api_key(self):
+        groq_api_key = settings.groq_api_key
+        return groq_api_key
+
+    def _handle_api_error(self, e: Exception):
+        """Centralized error handling for Groq API errors."""
+        if isinstance(e, groq.APITimeoutError):
+            logger.error("The request took too long: %s", e)
+        elif isinstance(e, groq.APIConnectionError):
+            logger.error(
+                "Request could not reach the Groq API servers or establish a secure connection: %s",
+                e,
+            )
+        elif isinstance(e, groq.AuthenticationError):
+            logger.error("API key or token is invalid, expired, or revoked: %s", e)
+        elif isinstance(e, groq.InternalServerError):
+            logger.error("Groq API internal server error: %s", e)
+        elif isinstance(e, groq.RateLimitError):
+            logger.error("Rate limit reached: %s", e)
+        else:
+            logger.error("An unexpected error occurred: %s", e)
+
+    def invoke(self, current_conversation: List[Dict[str, str]]) -> str:
+        try:
+            completion = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=current_conversation,  # type: ignore
+                **self.generation_kwargs,
+            )
+            return completion.choices[0].message.content or ""
+        except Exception as e:
+            self._handle_api_error(e)
+            raise
+
+    def stream(
+        self, current_conversation: List[Dict[str, str]]
+    ) -> Generator[str, None, None]:
+        try:
+            completion = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=current_conversation,  # type: ignore
+                **self.generation_kwargs,
+                stream=True,
+            )
+            for chunk in completion:
+                token = chunk.choices[0].delta.content or ""
+                yield token
+        except Exception as e:
+            self._handle_api_error(e)
+            raise
+
+    async def ainvoke(self, current_conversation: List[Dict[str, str]]) -> str:
+        try:
+            completion = await self.async_client.chat.completions.create(
+                model=self.model_name,
+                messages=current_conversation,  # type: ignore
+                **self.generation_kwargs,
+            )
+            return completion.choices[0].message.content or ""
+        except Exception as e:
+            self._handle_api_error(e)
+            raise
+
+    async def astream(
+        self, current_conversation: List[Dict[str, str]]
+    ) -> AsyncGenerator[str, None]:
+        try:
+            completion = await self.async_client.chat.completions.create(
+                model=self.model_name,
+                messages=current_conversation,  # type: ignore
+                **self.generation_kwargs,
+                stream=True,
+            )
+            async for chunk in completion:
+                token = chunk.choices[0].delta.content or ""
+                yield token
+        except Exception as e:
+            self._handle_api_error(e)
+            raise
+
+
 # CHECKPOINT = "facebook/opt-125m"
 # CHECKPOINT = "meta-llama/Llama-2-70b-chat-hf"
 # chat_llm = CustomChatHuggingFace(CHECKPOINT)
@@ -455,4 +556,5 @@ class CustomChatLlamaReplicate:
 
 # chat_llm = CustomChatLlamaReplicate()
 
-chat_llm = CustomChatOpenAI()
+# chat_llm = CustomChatOpenAI()
+chat_llm = CustomChatGroq()
