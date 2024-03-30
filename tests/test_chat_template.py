@@ -12,6 +12,37 @@
 # # Load the template
 # template = env.get_template("chat_template.j2")
 
+from huggingface_hub import login
+import openai
+from jinja2 import Template
+
+CHAT_TEMPLATE_STRING = """{%- for message in messages %}
+{% if message.role == 'user' -%}
+Human: {{- message.content -}}\n
+{%- elif message.role == 'assistant' -%}
+AI: {{- message.content -}}\n
+{%- else -%}
+Unknown Role: {{- message.content -}}\n
+{%- endif %}
+{%- endfor %}"""
+client = openai.OpenAI(api_key="yourmom")
+template = Template(CHAT_TEMPLATE_STRING)
+messages = [
+    {"role": "ur", "content": "What is the capital of France?"},
+    {"role": "asant", "content": "The capital of France is Paris."},
+]
+chat_history = template.render(messages=messages).strip()
+print(chat_history)
+# response = client.chat.completions.create(
+#     model="gpt-3.5-turbo",
+#     messages=[
+#         {
+#             "role": "system",
+#             "content": "You are a friendly chatbot who always responds in the style of a pirate",
+#         },
+#         {"role": "user", "content": "An increasing sequence from 1 to 10:"},
+#     ],
+# )
 # Your list of messages
 messages = [
     {"role": "system", "content": "Welcome to the chat!"},
@@ -75,4 +106,4 @@ def format_messages(messages, bos_token, eos_token):
     return formatted_messages
 
 
-print(format_messages(messages, "<s>", "</s>"))
+# print(format_messages(messages, "<s>", "</s>"))
