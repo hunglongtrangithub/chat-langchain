@@ -34,6 +34,7 @@ mecab-python3 = "^1.0.8"
 unidic-lite = "^1.0.8"
 replicate = "^0.25.1"
 langchain-openai = "^0.1.1"
+groq = "^0.4.2"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.9.1"
