@@ -1,24 +1,20 @@
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import SecretStr
 
 
-class Settings(BaseSettings):  # type: ignore
-
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore",
+        env_file_encoding="utf-8",
+    )
     # Declared environment variables
-    openai_api_key: str
-    langchain_tracing_v2: bool
-    langchain_endpoint: str
-    langchain_api_key: str
-    langchain_project: str
-    replicate_api_token: str
-    hf_token: str
-    groq_api_key: str
-    port: int
-
-    class Config:  # type: ignore
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    openai_api_key: SecretStr
+    replicate_api_token: SecretStr
+    hf_token: SecretStr
+    port: int = 8080
 
 
 settings = Settings()  # type: ignore
 if __name__ == "__main__":
-    print(settings.port)
+    print(settings.model_dump())
