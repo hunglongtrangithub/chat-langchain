@@ -1,5 +1,6 @@
 from pathlib import Path
 import requests
+from typing import BinaryIO
 
 from openai import OpenAI, AsyncOpenAI
 import replicate
@@ -10,6 +11,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
 from logger_config import get_logger
+from config import settings
 
 logger = get_logger(__name__)
 
@@ -25,10 +27,9 @@ def try_create_directory(path: Path):
         raise
 
 
-def try_open_audio_file(file_path: Path):
+def try_open_audio_file(file_path: Path) -> BinaryIO:
     try:
-        with open(file_path, "rb") as f:
-            return f
+        return open(file_path, "rb")
     except Exception as e:
         logger.error(f"Failed to open file at {file_path}: {e}")
         raise
@@ -107,9 +108,13 @@ class CoquiTTS:
 
 class OpenAITTS:
     def __init__(self):
-        self.client = OpenAI()
-        self.async_client = AsyncOpenAI()
+        self.api_key = self._get_openai_api_key()
+        self.client = OpenAI(api_key=self.api_key)
+        self.async_client = AsyncOpenAI(api_key=self.api_key)
         self.voice = "nova"
+
+    def _get_openai_api_key(self):
+        return settings.openai_api_key.get_secret_value()
 
     def run(self, text: str, file_path: str):
         try_create_directory(Path(file_path).resolve().parent)

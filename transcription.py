@@ -1,3 +1,4 @@
+from typing import BinaryIO
 from openai import OpenAI, AsyncOpenAI
 from transformers import pipeline
 import replicate
@@ -11,10 +12,9 @@ from config import settings
 logger = get_logger(__name__)
 
 
-def try_open_audio_file(file_path: Path):
+def try_open_audio_file(file_path: Path) -> BinaryIO:
     try:
-        with open(file_path, "rb") as f:
-            return f
+        return open(file_path, "rb")
     except Exception as e:
         logger.error(f"Failed to open file at {file_path}: {e}")
         raise
@@ -90,8 +90,12 @@ class ReplicateWhisperSTT:
 
 class OpenAIWhisperSTT:
     def __init__(self):
-        self.client = OpenAI(api_key=settings.openai_api_key)
-        self.async_client = AsyncOpenAI(api_key=settings.openai_api_key)
+        self.api_key = self._get_openai_api_key()
+        self.client = OpenAI(api_key=self.api_key)
+        self.async_client = AsyncOpenAI(api_key=self.api_key)
+
+    def _get_openai_api_key(self):
+        return settings.openai_api_key.get_secret_value()
 
     def run(self, audio_path: str) -> str:
         audio = try_open_audio_file(Path(audio_path))
