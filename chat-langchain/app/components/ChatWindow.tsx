@@ -12,7 +12,7 @@ import "highlight.js/styles/gradient-dark.css";
 
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { applyPatch } from "fast-json-patch";
-
+import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import {
   Heading,
@@ -130,25 +130,12 @@ export function ChatWindow(props: {
     try {
       const sourceStepName = "FindDocs";
       let streamedResponse: Record<string, any> = {};
-      // let streamedResponse: any = {};
       await fetchEventSource(apiBaseUrl + "/chat/astream_log", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "text/event-stream",
         },
-        // body: JSON.stringify({
-        //   input: {
-        //     question: messageValue,
-        //     chat_history: chatHistory,
-        //   },
-        //   config: {
-        //     metadata: {
-        //       conversation_id: conversationId,
-        //     },
-        //   },
-        //   include_names: [sourceStepName],
-        // }),
         body: JSON.stringify({
           question: messageValue,
           chat_history: chatHistory,
@@ -168,6 +155,10 @@ export function ChatWindow(props: {
               playMessageAudio(accumulatedMessage);
             }
             return;
+          }
+          if (msg.event === "error") {
+            let errorMessage = JSON.parse(msg.data).message;
+            toast.error(errorMessage);
           }
           if (msg.event === "data" && msg.data) {
             const chunk = JSON.parse(msg.data);
@@ -219,7 +210,8 @@ export function ChatWindow(props: {
           }
         },
       });
-    } catch (e) {
+    } catch (e: any) {
+      toast.error(e.toString());
       setMessages((prevMessages) => prevMessages.slice(0, -1));
       setIsLoading(false);
       setInput(messageValue);
@@ -242,6 +234,7 @@ export function ChatWindow(props: {
 
     if (!audioResponse.ok) {
       console.error("Failed to fetch audio");
+      toast.error("Failed to transform text to speech for AI response.");
       return;
     }
 
@@ -269,7 +262,7 @@ export function ChatWindow(props: {
       const userMessage = data.transcript;
       await sendMessage(userMessage, true);
     } else {
-      throw new Error(`Server error: ${response.statusText}`);
+      toast.error("Failed to transform user audio to text.");
     }
   };
 
