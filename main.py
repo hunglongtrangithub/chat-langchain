@@ -36,6 +36,12 @@ def read_root():
     return {"Hello": "World"}
 
 
+@app.post("/")
+def post_root():
+    print("POST /")
+    return {"Hello": "World"}
+
+
 def post_processing(op, path, chunk):
     return json.dumps(
         {"ops": [{"op": op, "path": path, "value": chunk}]}, separators=(",", ":")
