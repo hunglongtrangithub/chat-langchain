@@ -6,7 +6,6 @@ from typing import AsyncGenerator
 from fastapi import FastAPI, File, HTTPException, UploadFile, Form
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from langsmith import Client
 
 from pydantic import BaseModel
 from pathlib import Path
@@ -20,7 +19,6 @@ from config import settings
 
 logger = get_logger(__name__)
 
-client = Client()
 
 app = FastAPI()
 app.add_middleware(
