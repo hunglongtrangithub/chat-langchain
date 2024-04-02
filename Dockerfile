@@ -36,10 +36,6 @@ COPY ./faiss_index ./faiss_index
 # COPY ./expect.exp ./
 # RUN chmod +x ./expect.exp
 
-COPY ./.env ./
-
-RUN cat .env
-
 EXPOSE 8080
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
