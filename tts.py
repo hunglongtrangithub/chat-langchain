@@ -4,11 +4,12 @@ from typing import BinaryIO
 
 from openai import OpenAI, AsyncOpenAI
 import replicate
-from langdetect import detect
-from TTS.api import TTS
-import torch
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
+
+# from langdetect import detect
+# from TTS.api import TTS
+# import torch
+# import asyncio
+# from concurrent.futures import ThreadPoolExecutor
 
 from logger_config import get_logger
 from config import settings
@@ -35,75 +36,75 @@ def try_open_audio_file(file_path: Path) -> BinaryIO:
         raise
 
 
-class CoquiTTS:
-    def __init__(self):
-        self.model_name = "tts_models/multilingual/multi-dataset/xtts_v2"
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        try:
-            self.tts_model = TTS(self.model_name).to(self.device)
-        except Exception as e:
-            logger.error(f"Failed to load TTS model: {e}")
-            raise
-        self.voice_path = Path(__file__).resolve().parent / "voices" / "ellie.mp3"
-        self.executor = ThreadPoolExecutor()
-        self.supported_languages = [
-            "en",
-            "es",
-            "fr",
-            "de",
-            "it",
-            "pt",
-            "pl",
-            "tr",
-            "ru",
-            "nl",
-            "cs",
-            "ar",
-            "zh-cn",
-            "hu",
-            "ko",
-            "ja",
-            "hi",
-        ]
-
-    def run(self, text: str, file_path: str):
-        try_create_directory(Path(file_path).resolve().parent)
-        try:
-            lang_iso = detect(text)
-            if lang_iso not in self.supported_languages:
-                lang_iso = "en"
-        except Exception as e:
-            logger.error(f"Failed to detect language for text: {e}")
-            lang_iso = "en"
-        try:
-            self.tts_model.tts_to_file(
-                text=text,
-                speaker_wav=str(self.voice_path),
-                language=lang_iso,
-                file_path=file_path,
-            )
-        except Exception as e:
-            logger.error(f"Error in CoquiTTS method: {e}")
-            raise
-
-    async def arun(self, text: str, file_path: str):
-        try_create_directory(Path(file_path).resolve().parent)
-        try:
-            await asyncio.get_running_loop().run_in_executor(
-                self.executor,
-                self.run,
-                text,
-                file_path,
-            )
-        except asyncio.CancelledError:
-            logger.info("Async TTS method was cancelled.")
-            raise
-        except Exception as e:
-            logger.error(f"Error in async TTS method: {e}")
-            raise
-        finally:
-            logger.info("Shutting down executor.")
-            self.executor.shutdown(wait=False)
+# class CoquiTTS:
+#     def __init__(self):
+#         self.model_name = "tts_models/multilingual/multi-dataset/xtts_v2"
+#         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+#         try:
+#             self.tts_model = TTS(self.model_name).to(self.device)
+#         except Exception as e:
+#             logger.error(f"Failed to load TTS model: {e}")
+#             raise
+#         self.voice_path = Path(__file__).resolve().parent / "voices" / "ellie.mp3"
+#         self.executor = ThreadPoolExecutor()
+#         self.supported_languages = [
+#             "en",
+#             "es",
+#             "fr",
+#             "de",
+#             "it",
+#             "pt",
+#             "pl",
+#             "tr",
+#             "ru",
+#             "nl",
+#             "cs",
+#             "ar",
+#             "zh-cn",
+#             "hu",
+#             "ko",
+#             "ja",
+#             "hi",
+#         ]
+#
+#     def run(self, text: str, file_path: str):
+#         try_create_directory(Path(file_path).resolve().parent)
+#         try:
+#             lang_iso = detect(text)
+#             if lang_iso not in self.supported_languages:
+#                 lang_iso = "en"
+#         except Exception as e:
+#             logger.error(f"Failed to detect language for text: {e}")
+#             lang_iso = "en"
+#         try:
+#             self.tts_model.tts_to_file(
+#                 text=text,
+#                 speaker_wav=str(self.voice_path),
+#                 language=lang_iso,
+#                 file_path=file_path,
+#             )
+#         except Exception as e:
+#             logger.error(f"Error in CoquiTTS method: {e}")
+#             raise
+#
+#     async def arun(self, text: str, file_path: str):
+#         try_create_directory(Path(file_path).resolve().parent)
+#         try:
+#             await asyncio.get_running_loop().run_in_executor(
+#                 self.executor,
+#                 self.run,
+#                 text,
+#                 file_path,
+#             )
+#         except asyncio.CancelledError:
+#             logger.info("Async TTS method was cancelled.")
+#             raise
+#         except Exception as e:
+#             logger.error(f"Error in async TTS method: {e}")
+#             raise
+#         finally:
+#             logger.info("Shutting down executor.")
+#             self.executor.shutdown(wait=False)
 
 
 class OpenAITTS:

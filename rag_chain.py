@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from logger_config import get_logger
 from custom_chat_model import chat_llm
-
+from config import settings
 
 logger = get_logger(__name__)
 
@@ -89,9 +89,10 @@ Unknown Role: {{- message.content -}}\n
 NUM_DOCUMENTS = 6
 
 logger.info("Loading FAISS index")
+embeddings = OpenAIEmbeddings(chunk_size=200)
 vectorstore = FAISS.load_local(
     str(Path(__file__).parent / "faiss_index"),
-    embeddings=OpenAIEmbeddings(chunk_size=200),
+    embeddings=embeddings,
     allow_dangerous_deserialization=True,
 )
 logger.info("FAISS index loaded")

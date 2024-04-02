@@ -1,12 +1,13 @@
 from typing import BinaryIO
 from openai import OpenAI, AsyncOpenAI
-from transformers import pipeline
 import replicate
-import asyncio
+
+# from transformers import pipeline
+# import asyncio
+# from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from logger_config import get_logger
-from concurrent.futures import ThreadPoolExecutor
 from config import settings
 
 logger = get_logger(__name__)
@@ -20,39 +21,39 @@ def try_open_audio_file(file_path: Path) -> BinaryIO:
         raise
 
 
-class WhisperSTT:
-    def __init__(self):
-        self.transcription_model = pipeline(
-            "automatic-speech-recognition",
-            model="openai/whisper-large-v3",
-        )
-        self.executor = ThreadPoolExecutor()
-
-    def run(self, audio_path: str) -> str:
-        try:
-            transcription = self.transcription_model(audio_path)
-            return transcription  # type: ignore
-        except Exception as e:
-            print(f"Error in WhisperSTT method: {e}")
-            raise
-
-    async def arun(self, audio_path: str) -> str:
-        try:
-            transcription = await asyncio.get_event_loop().run_in_executor(
-                self.executor,
-                self.run,
-                audio_path,
-            )
-            return transcription
-        except asyncio.CancelledError:
-            logger.info("Async transcription method was cancelled.")
-            raise
-        except Exception as e:
-            logger.error(f"Error in async transcription method: {e}")
-            raise
-        finally:
-            logger.info("Shutting down executor.")
-            self.executor.shutdown(wait=False)
+# class WhisperSTT:
+#     def __init__(self):
+#         self.transcription_model = pipeline(
+#             "automatic-speech-recognition",
+#             model="openai/whisper-large-v3",
+#         )
+#         self.executor = ThreadPoolExecutor()
+#
+#     def run(self, audio_path: str) -> str:
+#         try:
+#             transcription = self.transcription_model(audio_path)
+#             return transcription  # type: ignore
+#         except Exception as e:
+#             print(f"Error in WhisperSTT method: {e}")
+#             raise
+#
+#     async def arun(self, audio_path: str) -> str:
+#         try:
+#             transcription = await asyncio.get_event_loop().run_in_executor(
+#                 self.executor,
+#                 self.run,
+#                 audio_path,
+#             )
+#             return transcription
+#         except asyncio.CancelledError:
+#             logger.info("Async transcription method was cancelled.")
+#             raise
+#         except Exception as e:
+#             logger.error(f"Error in async transcription method: {e}")
+#             raise
+#         finally:
+#             logger.info("Shutting down executor.")
+#             self.executor.shutdown(wait=False)
 
 
 class ReplicateWhisperSTT:
