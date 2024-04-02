@@ -37,8 +37,8 @@ def read_root():
 
 
 @app.post("/")
-def post_root():
-    print("POST /")
+def post_root(request: dict):
+    print("POST /", request)
     return {"Hello": "World"}
 
 
