@@ -27,20 +27,21 @@ RUN apt-get update && \
 # Set Python $PYTHON_VERSION as the default python version
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python${PYTHON_VERSION} 1
 
-RUN pip install ninja
-RUN pip install async-timeout
+RUN pip install ninja async-timeout
 
-RUN pip install poetry==1.5.1
+RUN pip install poetry==1.7.1
 
 RUN poetry config virtualenvs.create false
 
 COPY ./pyproject.toml ./poetry.lock* ./
 
-RUN poetry install --no-interaction --no-ansi
+RUN poetry install --no-interaction --no-ansi --no-root --no-directory
 
 WORKDIR /app
 
 COPY ./*.py ./
+
+RUN poetry install --no-interaction --no-ansi
 
 COPY ./faiss_index ./faiss_index
 
@@ -50,4 +51,4 @@ RUN chmod +x ./expect.exp
 
 # COPY ./.env ./
 
-CMD ["poetry", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
