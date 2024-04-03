@@ -1,6 +1,10 @@
 import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import SecretStr
+from dotenv import load_dotenv
+
+# NOTE: The environment variable from .env will be overridden by the one in the system environment
+load_dotenv()
 
 
 class Settings(BaseSettings):
@@ -20,4 +24,4 @@ class Settings(BaseSettings):
 settings = Settings()  # type: ignore
 if __name__ == "__main__":
     print(settings.model_dump())
-    print(settings.groq_api_key.get_secret_value() == os.getenv("GROQ_API_KEY"))
+    print(settings.openai_api_key.get_secret_value() == os.getenv("OPENAI_API_KEY"))
