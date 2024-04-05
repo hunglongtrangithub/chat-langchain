@@ -67,6 +67,8 @@ class CustomChatHuggingFace:
         logger.info("CustomChatHuggingFace initialized.")
         logger.info("Initialized on device: {}".format(self.device))
         logger.info("Checkpoint: {}".format(checkpoint))
+        if self.device == "cuda":
+            logger.info("Number of GPUs: {}".format(torch.cuda.device_count()))
 
     def _huggingface_login(self):
         token = settings.hf_token.get_secret_value()
