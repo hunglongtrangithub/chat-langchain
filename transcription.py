@@ -31,7 +31,7 @@ class WhisperSTT:
     def run(self, audio_path: str) -> str:
         try:
             transcription = self.transcription_model(audio_path)
-            return transcription  # type: ignore
+            return transcription["text"]
         except Exception as e:
             print(f"Error in WhisperSTT method: {e}")
             raise
