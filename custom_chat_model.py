@@ -549,12 +549,14 @@ class CustomChatGroq:
 # CHECKPOINT = "meta-llama/Llama-2-70b-chat-hf"
 # chat_llm = CustomChatHuggingFace(CHECKPOINT)
 
-# from llm_llama.model_generator.llm_pipeline import load_fine_tuned_model
-# CHECKPOINT = Path(__file__).parent / "llm_llama/Llama-2-7b-chat_peft_128"
-# model, tokenizer = load_fine_tuned_model(CHECKPOINT, peft_model=1)
-# chat_llm = CustomChatHuggingFace(model=model, tokenizer=tokenizer)
+from llm_llama.model_generator.llm_pipeline import load_fine_tuned_model
+from pathlib import Path
+
+CHECKPOINT = Path(__file__).parent.resolve() / "llm_llama/Llama-2-7b-chat_peft_128"
+model, tokenizer = load_fine_tuned_model(CHECKPOINT, peft_model=1)
+chat_llm = CustomChatHuggingFace(model=model, tokenizer=tokenizer)
 
 # chat_llm = CustomChatLlamaReplicate()
 
 # chat_llm = CustomChatOpenAI()
-chat_llm = CustomChatGroq()
+# chat_llm = CustomChatHuggingFace()

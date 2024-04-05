@@ -86,6 +86,7 @@ export function ChatWindow(props: {
   const { placeholder, titleText = "An LLM" } = props;
 
   const sendMessage = async (message?: string, playAudio: boolean = false) => {
+    console.log("API Base Url:", apiBaseUrl);
     if (messageContainerRef.current) {
       messageContainerRef.current.classList.add("grow");
     }
@@ -241,6 +242,7 @@ export function ChatWindow(props: {
     const audioBlob = await audioResponse.blob();
     const audioUrl = URL.createObjectURL(audioBlob);
     const audio = new Audio(audioUrl);
+    console.log("playing audio");
     audio.play();
   };
 

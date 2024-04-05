@@ -191,8 +191,8 @@ class ReplicateTortoiseTTS:
             raise
 
 
-tts = OpenAITTS()
-
+# tts = OpenAITTS()
+tts = CoquiTTS()
 
 if __name__ == "__main__":
     from pathlib import Path

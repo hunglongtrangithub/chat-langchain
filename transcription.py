@@ -31,7 +31,7 @@ class WhisperSTT:
     def run(self, audio_path: str) -> str:
         try:
             transcription = self.transcription_model(audio_path)
-            return transcription  # type: ignore
+            return transcription["text"]
         except Exception as e:
             print(f"Error in WhisperSTT method: {e}")
             raise
@@ -118,8 +118,8 @@ class OpenAIWhisperSTT:
             raise
 
 
-transcribe = OpenAIWhisperSTT()
-
+# transcribe = OpenAIWhisperSTT()
+transcribe = WhisperSTT()
 
 if __name__ == "__main__":
     audio_path = "voices/MyShell_chat_24-01-21_15_37_50_Hutao.mp3"
