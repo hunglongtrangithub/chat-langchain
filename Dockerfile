@@ -49,6 +49,6 @@ COPY ./faiss_index ./faiss_index
 COPY ./expect.exp ./
 RUN chmod +x ./expect.exp
 
-# COPY ./.env ./
+COPY ./.en[v] ./
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
