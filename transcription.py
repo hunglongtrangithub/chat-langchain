@@ -118,10 +118,47 @@ class OpenAIWhisperSTT:
             raise
 
 
+class DummyOpenAIWhisperSTT:
+    def __init__(self, default_transcription_text="This is a dummy transcription."):
+        self.default_transcription_text = (
+            "This is a dummy transcription."
+            if default_transcription_text is None
+            else default_transcription_text
+        )
+
+    def _get_openai_api_key(self):
+        # Simulate retrieval of API key
+        return "dummy_api_key"
+
+    def run(self, audio_path: str) -> str:
+        # Simulate processing the audio file
+        _ = try_open_audio_file(Path(audio_path))
+        logger.info("Simulating synchronous transcription.")
+        # Return a default dummy transcription text
+        return self.default_transcription_text
+
+    async def arun(self, audio_path: str) -> str:
+        # Simulate processing the audio file asynchronously
+        _ = try_open_audio_file(Path(audio_path))
+        logger.info("Simulating asynchronous transcription.")
+        # Simulate async delay
+        await asyncio.sleep(0)  # No real delay, just for async syntax
+        # Return a default dummy transcription text
+        return self.default_transcription_text
+
+
 # transcribe = OpenAIWhisperSTT()
 transcribe = WhisperSTT()
 
 if __name__ == "__main__":
-    audio_path = "voices/MyShell_chat_24-01-21_15_37_50_Hutao.mp3"
-    transcript = transcribe.run(audio_path)
-    print(transcript)
+    path_to_audio = "./tests/audio/moe-moe-kyun.mp3"
+    whisper_stt = DummyOpenAIWhisperSTT()
+    # Synchronous usage
+    print(whisper_stt.run(path_to_audio))
+
+    # Asynchronous usage
+    async def async_main():
+        transcription = await whisper_stt.arun(path_to_audio)
+        print(transcription)
+
+    asyncio.run(async_main())

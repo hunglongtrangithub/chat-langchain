@@ -1,6 +1,7 @@
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
+    BitsAndBytesConfig,
     TextIteratorStreamer,
 )
 from huggingface_hub import login
@@ -52,8 +53,16 @@ class CustomChatHuggingFace:
             logger.error(f"Failed to load tokenizer: {e}")
             raise
         try:
+            quantization_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=torch.bfloat16,
+            )
             self.model = (
-                AutoModelForCausalLM.from_pretrained(checkpoint, device_map="auto")
+                AutoModelForCausalLM.from_pretrained(
+                    checkpoint,
+                    device_map="auto",
+                    quantization_config=quantization_config,
+                )
                 if not model
                 else model
             )
@@ -69,6 +78,11 @@ class CustomChatHuggingFace:
         logger.info("Checkpoint: {}".format(checkpoint))
         if self.device == "cuda":
             logger.info("Number of GPUs: {}".format(torch.cuda.device_count()))
+        logger.info(
+            "Memory footprint: {:.2f}GB".format(
+                self.model.get_memory_footprint() / 1024**3
+            )
+        )
 
     def _huggingface_login(self):
         token = settings.hf_token.get_secret_value()
@@ -545,6 +559,27 @@ class CustomChatGroq:
         except Exception as e:
             self._handle_api_error(e)
             raise
+
+
+class DummyChat:
+    def __init__(self):
+        logger.info("DummyChat initialized.")
+
+    def invoke(self, current_conversation: List[Dict[str, str]]) -> str:
+        return "This is a dummy response."
+
+    def stream(
+        self, current_conversation: List[Dict[str, str]]
+    ) -> Generator[str, None, None]:
+        yield "This is a dummy response."
+
+    async def ainvoke(self, current_conversation: List[Dict[str, str]]) -> str:
+        return "This is a dummy response."
+
+    async def astream(
+        self, current_conversation: List[Dict[str, str]]
+    ) -> AsyncGenerator[str, None]:
+        yield "This is a dummy response."
 
 
 # CHECKPOINT = "facebook/opt-125m"

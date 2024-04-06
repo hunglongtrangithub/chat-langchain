@@ -1,16 +1,18 @@
 """Main entrypoint for the app."""
 
 import asyncio
+import os
 from typing import AsyncGenerator
 
 from fastapi import FastAPI, File, HTTPException, UploadFile, Form
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from langsmith import Client
 
 from pydantic import BaseModel
 from pathlib import Path
 import json
+
+from starlette.background import BackgroundTask
 
 from logger_config import get_logger
 from rag_chain import ChatRequest, chain
@@ -20,7 +22,6 @@ from config import settings
 
 logger = get_logger(__name__)
 
-client = Client()
 
 app = FastAPI()
 app.add_middleware(
@@ -109,11 +110,14 @@ async def text_to_speech(request: MessageRequest):
     speech_file_name = f"{request.conversationId}.mp3"
     upload_folder = Path(__file__).resolve().parent / "audio"
     upload_folder.mkdir(exist_ok=True)
-    speech_file_path = upload_folder / speech_file_name
+    speech_file_path = str(upload_folder / speech_file_name)
 
     try:
-        await tts.arun(text=text, file_path=str(speech_file_path))
-        return FileResponse(speech_file_path)
+        await tts.arun(text=text, file_path=speech_file_path)
+        return FileResponse(
+            speech_file_path,
+            background=BackgroundTask(delete_file, speech_file_path),
+        )
     except Exception as e:
         error_message = f"Internal server error from endpoint /text_to_speech: {e}"
         logger.error(error_message)
@@ -121,6 +125,15 @@ async def text_to_speech(request: MessageRequest):
             status_code=500,
             detail=error_message,
         )
+
+
+def delete_file(file_path: str):
+    """Deletes a file from the filesystem."""
+    try:
+        os.remove(file_path)
+        logger.info(f"Deleted file {file_path}")
+    except Exception as e:
+        logger.error(f"Error deleting file {file_path}: {e}")
 
 
 if __name__ == "__main__":

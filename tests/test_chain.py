@@ -59,10 +59,23 @@ def test_chain_async():
 
     asyncio.run(print_stream(request))
 
+def test_retrieve_docs():
+    docs = chain.retrieve_documents(request)
+    docs = [doc.json() for doc in docs]
+    import json 
+    for doc in docs:
+        print(json.dumps(doc, indent=4))
 
+def test_retriever():
+    docs = chain.retriever.get_relevant_documents(request.question)
+    docs = [doc.json() for doc in docs]
+    import json 
+    for doc in docs:
+        print(json.dumps(doc, indent=4))
 if __name__ == "__main__":
     # with timeit():
     #     test_chain()
-    with timeit():
-        test_chain_async()
+    # with timeit():
+    #     test_chain_async()
+    test_retriever()
     print("Done")
