@@ -1,6 +1,7 @@
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
+    BitsAndBytesConfig,
     TextIteratorStreamer,
 )
 from huggingface_hub import login
@@ -547,6 +548,27 @@ class CustomChatGroq:
             raise
 
 
+class DummyChat:
+    def __init__(self):
+        logger.info("DummyChat initialized.")
+
+    def invoke(self, current_conversation: List[Dict[str, str]]) -> str:
+        return "This is a dummy response."
+
+    def stream(
+        self, current_conversation: List[Dict[str, str]]
+    ) -> Generator[str, None, None]:
+        yield "This is a dummy response."
+
+    async def ainvoke(self, current_conversation: List[Dict[str, str]]) -> str:
+        return "This is a dummy response."
+
+    async def astream(
+        self, current_conversation: List[Dict[str, str]]
+    ) -> AsyncGenerator[str, None]:
+        yield "This is a dummy response."
+
+
 # CHECKPOINT = "facebook/opt-125m"
 # CHECKPOINT = "meta-llama/Llama-2-70b-chat-hf"
 # chat_llm = CustomChatHuggingFace(CHECKPOINT)
@@ -559,4 +581,5 @@ class CustomChatGroq:
 # chat_llm = CustomChatLlamaReplicate()
 
 # chat_llm = CustomChatOpenAI()
-chat_llm = CustomChatGroq()
+# chat_llm = CustomChatGroq()
+chat_llm = DummyChat()

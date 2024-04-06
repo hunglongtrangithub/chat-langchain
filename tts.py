@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 import requests
 from typing import BinaryIO
@@ -191,12 +192,48 @@ class ReplicateTortoiseTTS:
             raise
 
 
-tts = OpenAITTS()
+class DummyOpenAITTS:
+    def __init__(self, source_audio_file: str):
+        self.voice = "nova"
+        self.source_audio_file = source_audio_file
 
+    def run(self, text: str, file_path: str):
+        """Synchronously copy audio content to specified file path."""
+        try_create_directory(Path(file_path).resolve().parent)
+        try:
+            # Copy the content of the source audio file to the specified file path
+            shutil.copy(self.source_audio_file, file_path)
+            logger.info("Dummy TTS file copied successfully.")
+        except Exception as e:
+            logger.error(f"Error in Dummy TTS method: {e}")
+            raise
+
+    async def arun(self, text: str, file_path: str):
+        """Asynchronously copy audio content to specified file path."""
+        try_create_directory(Path(file_path).resolve().parent)
+        try:
+            # Simulate async operation, if needed
+            await asyncio.sleep(0)  # No delay needed, just for async syntax
+
+            # Copy the content of the source audio file to the specified file path
+            shutil.copy(self.source_audio_file, file_path)
+            logger.info("Dummy Async TTS file copied successfully.")
+        except Exception as e:
+            logger.error(f"Error in Dummy Async TTS method: {e}")
+            raise
+
+
+# tts = OpenAITTS()
+tts = DummyOpenAITTS(source_audio_file="./tests/audio/moe-moe-kyun.mp3")
 
 if __name__ == "__main__":
-    from pathlib import Path
+    source_file = "./tests/audio/moe-moe-kyun.mp3"
+    tts_model = DummyOpenAITTS(source_audio_file=source_file)
 
-    text = "Hello, I am a computer program."
-    file_path = str(Path(__file__).parent / "audio" / "test.mp3")
-    tts.run(text, file_path)
+    tts_model.run("Hello, this is a test.", "./tests/dummy_speech_sync.mp3")
+
+    # For the async method, run it in an event loop
+    async def main():
+        await tts_model.arun("Hello, this is a test.", "./tests/dummy_speech_async.mp3")
+
+    asyncio.run(main())
