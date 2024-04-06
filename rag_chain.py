@@ -88,10 +88,12 @@ Unknown Role: {{- message.content -}}\n
 
 NUM_DOCUMENTS = 6
 
+embeddings = OpenAIEmbeddings(chunk_size=200)
+
 logger.info("Loading FAISS index")
 vectorstore = FAISS.load_local(
     str(Path(__file__).parent / "faiss_index"),
-    embeddings=OpenAIEmbeddings(chunk_size=200),
+    embeddings=embeddings,
     allow_dangerous_deserialization=True,
 )
 logger.info("FAISS index loaded")
@@ -148,7 +150,7 @@ class RAGChain:
         try:
             docs = await self.retriever.aget_relevant_documents(question)
         except Exception as e:
-            logger.error("Error occurred while retrieving documents.")
+            logger.error("Error occurred while retrieving documents:", e)
             docs = []
         return docs
 
@@ -179,7 +181,7 @@ class RAGChain:
         try:
             docs = self.retriever.get_relevant_documents(question)
         except Exception as e:
-            logger.error("Error occurred while retrieving documents.")
+            logger.error("Error occurred while retrieving documents:", e)
             docs = []
         return docs
 
