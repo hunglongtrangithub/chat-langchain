@@ -41,12 +41,7 @@ WORKDIR /app
 
 COPY ./*.py ./
 
-# copy model directory to container
-COPY ./llm_llama ./llm_llama
-
 RUN poetry install --no-interaction --no-ansi
-
-COPY ./faiss_index ./faiss_index
 
 # automating agreement to the terms and conditions of the coqui TTS model
 COPY ./expect.exp ./
