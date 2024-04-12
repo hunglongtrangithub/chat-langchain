@@ -39,7 +39,7 @@ services:
     environment:
       - HF_TOKEN=${HF_TOKEN}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - REPLICATE_API_KEY=${REPLICATE_API_KEY}
+      - REPLICATE_API_TOKEN=${REPLICATE_API_TOKEN}
       - GROQ_API_KEY=${GROQ_API_KEY}
 
     deploy:
