@@ -26,14 +26,13 @@ services:
 
     working_dir: /app
     entrypoint: /bin/sh -c
-    command: >
-      "./expect.exp &&
-      uvicorn main:app --host 0.0.0.0 --port 8080 --reload"
+    command: uvicorn main:app --host 0.0.0.0 --port 8080 --reload
 
     volumes:
       - .:/app
       - ./faiss_index:/app/faiss_index
-      - ./llm:/app/llm
+      - ./llm_llama:/app/llm_llama
+      - ./voices:/app/voices
 
     ports:
       - 8080:8080
@@ -41,17 +40,12 @@ services:
       - HF_TOKEN=${HF_TOKEN}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - REPLICATE_API_KEY=${REPLICATE_API_KEY}
-
-    # whisper-service:
-    #   image: r8.im/vaibhavs10/incredibly-fast-whisper@sha256:3ab86df6c8f54c11309d4d1f930ac292bad43ace52d10c80d87eb258b3c9f79c
-    #   ports:
-    #     - 5000:5000
+      - GROQ_API_KEY=${GROQ_API_KEY}
 
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              count: 8
+              count: 4
               capabilities: [gpu]
-
