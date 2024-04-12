@@ -1,3 +1,5 @@
 chat-langchain/
 assets/
-llm/
+voices/
+llm_llama/
+faiss_index/
