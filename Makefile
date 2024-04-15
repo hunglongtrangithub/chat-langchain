@@ -2,7 +2,7 @@
 IMAGE_NAME=chat-backend
 CONTAINER_NAME=chat-backend
 PORT=8080
-USE_GPU=0
+USE_GPU=1
 .PHONY: start format build run stop remove rebuild
 
 # Start the local server using uvicorn
@@ -22,7 +22,7 @@ build:
 run:
 	docker run --name $(CONTAINER_NAME) \
 		$(if $(findstring $(USE_GPU), 1),--gpus all,) \
-		--entrypoint /bin/bash -c \
+		--entrypoint "/bin/bash" \
 		-p $(PORT):$(PORT) \
 		--env-file .env \
 		-v $(shell pwd)/voices:/app/voices \
