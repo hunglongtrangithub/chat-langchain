@@ -1,7 +1,7 @@
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
-    BitsAndBytesConfig,
+    # BitsAndBytesConfig,
     TextIteratorStreamer,
 )
 from huggingface_hub import login
@@ -53,15 +53,15 @@ class CustomChatHuggingFace:
             logger.error(f"Failed to load tokenizer: {e}")
             raise
         try:
-            quantization_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_compute_dtype=torch.bfloat16,
-            )
+            # quantization_config = BitsAndBytesConfig(
+            #     load_in_4bit=True,
+            #     bnb_4bit_compute_dtype=torch.bfloat16,
+            # )
             self.model = (
                 AutoModelForCausalLM.from_pretrained(
                     checkpoint,
                     device_map="auto",
-                    quantization_config=quantization_config,
+                    # quantization_config=quantization_config,
                 )
                 if not model
                 else model
