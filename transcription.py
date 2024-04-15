@@ -27,6 +27,7 @@ class WhisperSTT:
             model="openai/whisper-large-v3",
         )
         self.executor = ThreadPoolExecutor()
+        logger.info("whisper-large-v3 initialized.")
 
     def run(self, audio_path: str) -> str:
         try:

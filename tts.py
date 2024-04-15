@@ -42,7 +42,7 @@ class CoquiTTS:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         try:
             self.tts_model = TTS(self.model_name).to(self.device)
-            logger.info("Successfully loaded TTS model")
+            logger.info(f"{self.model_name} initialized.")
         except Exception as e:
             logger.error(f"Failed to load TTS model: {e}")
             raise
