@@ -25,6 +25,7 @@ run:
 		--entrypoint "/bin/bash" \
 		-p $(PORT):$(PORT) \
 		--env-file .env \
+		-v $(shell pwd):/app \
 		-v $(shell pwd)/voices:/app/voices \
 		-v $(shell pwd)/faiss_index:/app/faiss_index \
 		-v $(shell pwd)/llm_llama:/app/llm_llama \
