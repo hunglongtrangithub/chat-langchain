@@ -2,7 +2,7 @@
 IMAGE_NAME=chat-backend
 CONTAINER_NAME=chat-backend
 PORT=8080
-USE_GPU=1
+USE_GPU=0
 .PHONY: start format build run stop remove rebuild
 
 # Start the local server using uvicorn
@@ -16,7 +16,7 @@ format:
 
 # Build the Docker image
 build:
-	docker build --no-cache --progress=plain -t $(IMAGE_NAME) . 
+	docker build --no-cache --progress=plain -t $(IMAGE_NAME) .
 
 # Run the Docker container
 run:
@@ -30,7 +30,7 @@ run:
 		-v $(shell pwd)/faiss_index:/app/faiss_index \
 		-v $(shell pwd)/llm_llama:/app/llm_llama \
 		$(IMAGE_NAME) \
-		-c "./expect.exp && uvicorn main:app --host 0.0.0.0 --port 8080 --reload"
+		-c "uvicorn main:app --host 0.0.0.0 --port 8080 --reload"
 
 # Interactive shell into the Docker CONTAINER_NAME
 shell:
