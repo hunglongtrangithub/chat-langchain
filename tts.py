@@ -2,7 +2,7 @@ import shutil
 from pathlib import Path
 import requests
 from typing import BinaryIO
-
+import os
 from openai import OpenAI, AsyncOpenAI
 import replicate
 from langdetect import detect
@@ -40,6 +40,8 @@ class CoquiTTS:
     def __init__(self):
         self.model_name = "tts_models/multilingual/multi-dataset/xtts_v2"
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        # Set environment variable to agree to the terms of service
+        os.environ["COQUI_TOS_AGREED"] = "1"
         try:
             self.tts_model = TTS(self.model_name).to(self.device)
             logger.info(f"{self.model_name} initialized.")
