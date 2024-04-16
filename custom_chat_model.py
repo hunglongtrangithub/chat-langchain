@@ -77,11 +77,11 @@ class CustomChatHuggingFace:
         logger.info("Initialized on device: {}".format(self.device))
         if self.device == "cuda":
             logger.info("Number of GPUs: {}".format(torch.cuda.device_count()))
-        logger.info(
-            "Memory footprint: {:.2f}GB".format(
-                self.model.get_memory_footprint() / 1024**3
+            logger.info(
+                "Memory footprint: {:.2f}GB".format(
+                    self.model.get_memory_footprint() / 1024**3
+                )
             )
-        )
 
     def _huggingface_login(self):
         token = settings.hf_token.get_secret_value()

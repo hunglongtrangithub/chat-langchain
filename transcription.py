@@ -53,11 +53,11 @@ class WhisperSTT:
         logger.info("Initialized on device: {}".format(self.device))
         if self.device == torch.device("cuda"):
             logger.info("Number of GPUs: {}".format(torch.cuda.device_count()))
-        logger.info(
-            "Memory footprint: {:.2f}GB".format(
-                torch.cuda.memory_allocated(self.model) / 1024**3
+            logger.info(
+                "Memory footprint: {:.2f}GB".format(
+                    torch.cuda.memory_allocated(self.model) / 1024**3
+                )
             )
-        )
 
     def run(self, audio_path: str) -> str:
         try:
