@@ -18,23 +18,41 @@ format:
 build:
 	docker build --no-cache --progress=plain -t $(IMAGE_NAME) .
 
+
 # Run the Docker container
 run:
 	docker run --name $(CONTAINER_NAME) \
 		$(if $(findstring $(USE_GPU), 1),--gpus all,) \
 		--entrypoint "/bin/bash" \
 		-p $(PORT):$(PORT) \
+		-e COQUI_TOS_AGREED=1 \
+		-e TTS_HOME=/app/coqui \
+		-e NVIDIA_VISIBLE_DEVICES=all \
 		--env-file .env \
-		-v $(shell pwd):/app \
-		-v $(shell pwd)/voices:/app/voices \
-		-v $(shell pwd)/faiss_index:/app/faiss_index \
-		-v $(shell pwd)/llm_llama:/app/llm_llama \
+		--mount type=bind,source=$(shell pwd),target=/app \
+		--mount type=bind,source=$(shell pwd)/voices,target=/app/voices,readonly \
+		--mount type=bind,source=$(shell pwd)/faiss_index,target=/app/faiss_index,readonly \
+		--mount type=bind,source=$(shell pwd)/llm_llama,target=/app/llm_llama,readonly \
+		--mount type=bind,source=$(shell pwd)/coqui,target=/app/coqui,readonly \
 		$(IMAGE_NAME) \
 		-c "uvicorn main:app --host 0.0.0.0 --port 8080 --reload"
 
+
 # Interactive shell into the Docker CONTAINER_NAME
 shell:
-	docker run -it $(CONTAINER_NAME) /bin/bash
+	docker run -it --name $(CONTAINER_NAME) \
+		$(if $(findstring $(USE_GPU), 1),--gpus all,) \
+		--entrypoint "/bin/bash" \
+		-p $(PORT):$(PORT) \
+		-e COQUI_TOS_AGREED=1 \
+		-e NVIDIA_VISIBLE_DEVICES=all \
+		--env-file .env \
+		--mount type=bind,source=$(shell pwd),target=/app \
+		--mount type=bind,source=$(shell pwd)/voices,target=/app/voices,readonly \
+		--mount type=bind,source=$(shell pwd)/faiss_index,target=/app/faiss_index,readonly \
+		--mount type=bind,source=$(shell pwd)/llm_llama,target=/app/llm_llama,readonly \
+		$(IMAGE_NAME) \
+		-c "/bin/bash"
 
 # Stop the Docker container
 stop:
