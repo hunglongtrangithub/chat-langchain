@@ -1,6 +1,7 @@
+import torch
 from typing import BinaryIO
 from openai import OpenAI, AsyncOpenAI
-from transformers import pipeline
+from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 import replicate
 import asyncio
 from pathlib import Path
@@ -23,16 +24,44 @@ def try_open_audio_file(file_path: Path) -> BinaryIO:
 class WhisperSTT:
     def __init__(self):
         self.model_name = "openai/whisper-large-v3"
-        self.transcription_model = pipeline(
+        self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        self.torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+
+        self.model = AutoModelForSpeechSeq2Seq.from_pretrained(
+            self.model_name,
+            torch_dtype=self.torch_dtype,
+            low_cpu_mem_usage=True,
+            use_safetensors=True,
+        )
+        self.model.to(self.device)
+
+        processor = AutoProcessor.from_pretrained(self.model_name)
+
+        self.pipe = pipeline(
             "automatic-speech-recognition",
-            model=self.model_name,
+            model=self.model,
+            tokenizer=processor.tokenizer,
+            feature_extractor=processor.feature_extractor,
+            max_new_tokens=128,
+            chunk_length_s=30,
+            batch_size=16,
+            torch_dtype=self.torch_dtype,
+            device=self.device,
         )
         self.executor = ThreadPoolExecutor()
         logger.info(f"{self.model_name} initialized.")
+        logger.info("Initialized on device: {}".format(self.device))
+        if self.device == torch.device("cuda"):
+            logger.info("Number of GPUs: {}".format(torch.cuda.device_count()))
+        logger.info(
+            "Memory footprint: {:.2f}GB".format(
+                torch.cuda.memory_allocated(self.model) / 1024**3
+            )
+        )
 
     def run(self, audio_path: str) -> str:
         try:
-            transcription = self.transcription_model(audio_path)
+            transcription = self.pipe(audio_path)
             return transcription["text"]  # type: ignore
         except Exception as e:
             print(f"Error in loading {self.model_name}: {e}")
