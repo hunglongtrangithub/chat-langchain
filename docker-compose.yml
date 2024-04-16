@@ -1,7 +1,7 @@
 version: "3.8"
 
 services:
-  chat-frontend:
+  frontend:
     build:
       context: ./chat-langchain
       dockerfile: Dockerfile
@@ -18,7 +18,7 @@ services:
     environment:
       - NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
 
-  chat-backend:
+  backend:
     build:
       context: .
       dockerfile: Dockerfile
@@ -26,7 +26,7 @@ services:
 
     working_dir: /app
     entrypoint: /bin/bash -c
-    command: "./expect.exp && uvicorn main:app --host 0.0.0.0 --port 8080 --reload"
+    command: uvicorn main:app --host 0.0.0.0 --port 8080 --reload
 
     volumes:
       - .:/app
