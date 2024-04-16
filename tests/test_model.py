@@ -9,6 +9,7 @@ from custom_chat_model import (
     CustomChatOpenAI,
     CustomChatGroq,
 )
+from transcription import transcribe
 
 checkpoint = "facebook/opt-125m"
 # checkpoint = "meta-llama/Llama-2-7b-chat-hf"
@@ -162,6 +163,13 @@ def test_groq_model(stream=False):
     asyncio.run(stream_async())
 
 
+def test_transcription():
+    audio_path = Path(__file__).resolve().parent / "audio" / "gta-san-andreas.mp3"
+    print("Transcribing audio file")
+    text = transcribe.run(str(audio_path))
+    print(text)
+
+
 if __name__ == "__main__":
     # print("Testing Hugging Face model")
     # test_hf_model()
@@ -169,6 +177,8 @@ if __name__ == "__main__":
     # test_llama_model()
     # print("Testing OpenAI model")
     # test_openai_model()
-    print("Testing Groq model")
-    test_groq_model()
-    print("All tests passed")
+    # print("Testing Groq model")
+    # test_groq_model()
+    # print("All tests passed")
+    print("Testing transcription")
+    test_transcription()
