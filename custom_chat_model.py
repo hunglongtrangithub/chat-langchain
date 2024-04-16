@@ -73,9 +73,8 @@ class CustomChatHuggingFace:
         self.generation_kwargs = generation_kwargs or self.default_generation_kwargs
         self.executor = ThreadPoolExecutor()
 
-        logger.info("CustomChatHuggingFace initialized.")
+        logger.info(f"{checkpoint} initialized.")
         logger.info("Initialized on device: {}".format(self.device))
-        logger.info("Checkpoint: {}".format(checkpoint))
         if self.device == "cuda":
             logger.info("Number of GPUs: {}".format(torch.cuda.device_count()))
         logger.info(
