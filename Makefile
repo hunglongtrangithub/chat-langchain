@@ -26,8 +26,6 @@ run:
 		$(if $(findstring $(NO_GPU), 1),,--gpus all) \
 		--entrypoint "/bin/bash" \
 		-p $(PORT):$(PORT) \
-		-e COQUI_TOS_AGREED=1 \
-		-e TTS_HOME=/app/coqui \
 		-e NVIDIA_VISIBLE_DEVICES=all \
 		--env-file .env \
 		--mount type=bind,source=$(shell pwd),target=/app \
@@ -44,7 +42,6 @@ shell:
 		$(if $(findstring $(NO_GPU), 1),,--gpus all) \
 		--entrypoint "/bin/bash" \
 		-p $(PORT):$(PORT) \
-		-e COQUI_TOS_AGREED=1 \
 		-e NVIDIA_VISIBLE_DEVICES=all \
 		--env-file .env \
 		--mount type=bind,source=$(shell pwd),target=/app \
