@@ -33,7 +33,6 @@ run:
 		--mount type=bind,source=$(shell pwd)/voices,target=/app/voices,readonly \
 		--mount type=bind,source=$(shell pwd)/faiss_index,target=/app/faiss_index,readonly \
 		--mount type=bind,source=$(shell pwd)/llm_llama,target=/app/llm_llama,readonly \
-		--mount type=bind,source=$(shell pwd)/coqui,target=/app/coqui,readonly \
 		$(IMAGE_NAME) \
 		-c "uvicorn main:app --host 0.0.0.0 --port 8080 --reload"
 
