@@ -44,7 +44,7 @@ class CoquiTTS:
             self.tts_model = TTS(self.model_name).to(self.device)
             logger.info(f"{self.model_name} initialized.")
         except Exception as e:
-            logger.error(f"Failed to load TTS model: {e}")
+            logger.error(f"Failed to load {self.model_name}: {e}")
             raise
         self.voice_path = Path(__file__).resolve().parent / "voices" / "ellie.mp3"
         self.executor = ThreadPoolExecutor()

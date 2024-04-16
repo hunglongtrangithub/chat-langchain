@@ -22,7 +22,7 @@ class Settings(BaseSettings):
 
 
 settings = Settings()  # type: ignore
-print(settings.model_dump_json(indent=2))
+# print(settings.model_dump_json(indent=2))
 
 if __name__ == "__main__":
     print(settings.model_dump())

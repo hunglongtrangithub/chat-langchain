@@ -22,19 +22,20 @@ def try_open_audio_file(file_path: Path) -> BinaryIO:
 
 class WhisperSTT:
     def __init__(self):
+        self.model_name = "openai/whisper-large-v3"
         self.transcription_model = pipeline(
             "automatic-speech-recognition",
-            model="openai/whisper-large-v3",
+            model=self.model_name,
         )
         self.executor = ThreadPoolExecutor()
-        logger.info("whisper-large-v3 initialized.")
+        logger.info(f"{self.model_name} initialized.")
 
     def run(self, audio_path: str) -> str:
         try:
             transcription = self.transcription_model(audio_path)
-            return transcription["text"]
+            return transcription["text"]  # type: ignore
         except Exception as e:
-            print(f"Error in WhisperSTT method: {e}")
+            print(f"Error in loading {self.model_name}: {e}")
             raise
 
     async def arun(self, audio_path: str) -> str:
