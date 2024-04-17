@@ -1,3 +1,4 @@
+import scipy
 import shutil
 from pathlib import Path
 import requests
@@ -7,6 +8,7 @@ from openai import OpenAI, AsyncOpenAI
 import replicate
 from langdetect import detect
 from TTS.api import TTS
+from transformers import AutoProcessor, BarkModel
 import torch
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -34,6 +36,56 @@ def try_open_audio_file(file_path: Path) -> BinaryIO:
     except Exception as e:
         logger.error(f"Failed to open file at {file_path}: {e}")
         raise
+
+
+class BarkSuno:
+    def __init__(self):
+        self.voice_preset = "v2/en_speaker_6"
+        self.model_name = "suno/bark-small"
+        self.processor = AutoProcessor.from_pretrained(self.model_name)
+        self.model = BarkModel.from_pretrained(self.model_name)
+        self.executor = ThreadPoolExecutor()
+        logger.info(f"{self.model_name} initialized.")
+
+    def run(self, text: str, file_path: str):
+        try_create_directory(Path(file_path).resolve().parent)
+        try:
+            inputs = self.processor(
+                text,
+                voice_preset=self.voice_preset,
+                return_tensors="pt",
+            )
+            audio_array = self.model.generate(**inputs)  # type: ignore
+            audio_array = audio_array.cpu().numpy().squeeze()
+
+            sampling_rate = model.generation_config.sample_rate  # type: ignore
+            scipy.io.wavfile.write(
+                file_path,
+                rate=sampling_rate,
+                data=audio_array,
+            )
+        except Exception as e:
+            logger.error(f"Error in BarkSuno method: {e}")
+            raise
+
+    async def arun(self, text: str, file_path: str):
+        try_create_directory(Path(file_path).resolve().parent)
+        try:
+            await asyncio.get_running_loop().run_in_executor(
+                self.executor,
+                self.run,
+                text,
+                file_path,
+            )
+        except asyncio.CancelledError:
+            logger.info("Async TTS method was cancelled.")
+            raise
+        except Exception as e:
+            logger.error(f"Error in async TTS method: {e}")
+            raise
+        finally:
+            logger.info("Shutting down executor.")
+            self.executor.shutdown(wait=False)
 
 
 class CoquiTTS:
@@ -227,8 +279,8 @@ class DummyOpenAITTS:
 
 
 # tts = OpenAITTS()
-tts = CoquiTTS()
-
+# tts = CoquiTTS()
+tts = BarkSuno()
 if __name__ == "__main__":
     source_file = "./tests/audio/moe-moe-kyun.mp3"
     tts_model = DummyOpenAITTS(source_audio_file=source_file)
