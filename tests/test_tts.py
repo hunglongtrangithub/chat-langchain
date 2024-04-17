@@ -3,7 +3,14 @@ from pathlib import Path
 import sys
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from tts import CoquiTTS, OpenAITTS, ReplicateTortoiseTTS
+from tts import CoquiTTS, OpenAITTS, ReplicateTortoiseTTS, BarkSuno
+
+
+def test_barksuno_run():
+    tts = BarkSuno()
+    text = "Hello, world!"
+    file_path = Path(__file__).resolve().parent / "audio" / "hello-world.mp3"
+    tts.run(text, str(file_path))
 
 
 def test_coqui_tts_run():
@@ -57,17 +64,19 @@ async def test_replicate_tortoise_tts_arun():
 # Run tests
 if __name__ == "__main__":
     print("Running TTS tests...")
-    print("Testing CoquiTTS...")
-    test_coqui_tts_run()
-    print("Testing CoquiTTS async...")
-    asyncio.run(test_coqui_tts_arun())
-
-    print("Testing OpenAITTS...")
-    test_openai_tts_run()
-    print("Testing OpenAITTS async...")
-    asyncio.run(test_openai_tts_arun())
-
-    print("Testing ReplicateTortoiseTTS...")
-    test_replicate_tortoise_tts_run()
-    print("Testing ReplicateTortoiseTTS async...")
-    asyncio.run(test_replicate_tortoise_tts_arun())
+    # print("Testing CoquiTTS...")
+    # test_coqui_tts_run()
+    # print("Testing CoquiTTS async...")
+    # asyncio.run(test_coqui_tts_arun())
+    #
+    # print("Testing OpenAITTS...")
+    # test_openai_tts_run()
+    # print("Testing OpenAITTS async...")
+    # asyncio.run(test_openai_tts_arun())
+    #
+    # print("Testing ReplicateTortoiseTTS...")
+    # test_replicate_tortoise_tts_run()
+    # print("Testing ReplicateTortoiseTTS async...")
+    # asyncio.run(test_replicate_tortoise_tts_arun())
+    print("Testing BarkSuno...")
+    test_barksuno_run()

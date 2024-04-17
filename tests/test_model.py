@@ -9,7 +9,8 @@ from custom_chat_model import (
     CustomChatOpenAI,
     CustomChatGroq,
 )
-from transcription import transcribe
+from transcription import WhisperSTT
+from tts import BarkSuno
 
 checkpoint = "facebook/opt-125m"
 # checkpoint = "meta-llama/Llama-2-7b-chat-hf"
@@ -164,6 +165,7 @@ def test_groq_model(stream=False):
 
 
 def test_transcription():
+    transcribe = WhisperSTT()
     audio_path = Path(__file__).resolve().parent / "audio" / "gta-san-andreas.mp3"
     print("Transcribing audio file")
     text = transcribe.run(str(audio_path))
