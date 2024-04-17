@@ -107,7 +107,7 @@ class MessageRequest(BaseModel):
 @app.post("/text_to_speech")
 async def text_to_speech(request: MessageRequest):
     text = request.message
-    speech_file_name = f"{request.conversationId}.mp3"
+    speech_file_name = f"{request.conversationId}.wav"
     upload_folder = Path(__file__).resolve().parent / "audio"
     upload_folder.mkdir(exist_ok=True)
     speech_file_path = str(upload_folder / speech_file_name)
