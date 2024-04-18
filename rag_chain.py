@@ -9,7 +9,7 @@ from typing import List, Optional, Dict, Tuple, Union, Generator, AsyncGenerator
 from pydantic import BaseModel, Field
 
 from logger_config import get_logger
-from custom_chat_model import chat_llm
+from custom_chat_model import BaseChat, chat_llm
 
 
 logger = get_logger(__name__)
@@ -90,7 +90,6 @@ NUM_DOCUMENTS = 6
 
 embeddings = OpenAIEmbeddings(chunk_size=200)
 
-logger.info("Loading FAISS index")
 vectorstore = FAISS.load_local(
     str(Path(__file__).parent / "faiss_index"),
     embeddings=embeddings,
@@ -101,7 +100,7 @@ retriever = vectorstore.as_retriever(search_kwargs=dict(k=NUM_DOCUMENTS))
 
 
 class RAGChain:
-    def __init__(self, retriever: VectorStoreRetriever, chat_llm):
+    def __init__(self, retriever: VectorStoreRetriever, chat_llm: BaseChat):
         self.retriever = retriever
         self.chat_llm = chat_llm
 
@@ -201,7 +200,7 @@ class RAGChain:
         ]
         try:
             text_streamer = self.chat_llm.stream(current_conversation)
-            return text_streamer
+            return text_streamer  # type: ignore
         except Exception as e:
             logger.error("Error occurred while streaming response")
             yield ""
