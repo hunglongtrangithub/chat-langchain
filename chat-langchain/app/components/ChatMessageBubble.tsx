@@ -11,7 +11,8 @@ import {
   Box,
   Button,
   Divider,
-  Spacer,
+	Spacer,
+	Spinner,
 } from "@chakra-ui/react";
 import { sendFeedback } from "../utils/sendFeedback";
 import { apiBaseUrl } from "../utils/constants";
@@ -21,6 +22,7 @@ export type Message = {
   id: string;
   createdAt?: Date;
   content: string;
+  text: string;
   role: "system" | "user" | "assistant" | "function";
   runId?: string;
   sources?: Source[];
@@ -110,15 +112,17 @@ const createAnswerElements = (
 };
 
 export function ChatMessageBubble(props: {
+  conversationId: string;
   message: Message;
   aiEmoji?: string;
   isMostRecent: boolean;
   messageCompleted: boolean;
 }) {
-  const { role, content, runId } = props.message;
+  const { role, content, text, runId } = props.message;
   const isUser = role === "user";
   const [isLoading, setIsLoading] = useState(false);
   const [traceIsLoading, setTraceIsLoading] = useState(false);
+  const [speechIsLoading, setSpeechIsLoading] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [comment, setComment] = useState("");
   const [feedbackColor, setFeedbackColor] = useState("");
@@ -252,6 +256,33 @@ export function ChatMessageBubble(props: {
     });
   };
 
+  const playMessageAudio = async (message: string, conversationId: string) => {
+    console.log("play message audio for ", message);
+    
+    setSpeechIsLoading(true);
+		const audioResponse = await fetch(apiBaseUrl + "/text_to_speech", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ message, conversationId }),
+		});
+		if (!audioResponse.ok) {
+			console.error("Failed to fetch audio");
+			toast.error("Failed to transform text to speech for AI response.");
+
+			setSpeechIsLoading(false);
+			return;
+		}
+
+		const audioBlob = await audioResponse.blob();
+		const audioUrl = URL.createObjectURL(audioBlob);
+		const audio = new Audio(audioUrl);
+
+		console.log("playing audio");
+		audio.play();
+		
+		audio.onended = () => { setSpeechIsLoading(false) };
+  };
+  
   return (
     <VStack align="start" spacing={5} pb={5}>
       {!isUser && filteredSources.length > 0 && (
@@ -360,6 +391,21 @@ export function ChatMessageBubble(props: {
             >
               🦜🛠️ View trace
             </Button>
+            <Spacer />
+            <Button
+              size="sm"
+              variant="outline"
+              colorScheme="blue"
+              onClick={(e) => {
+                e.preventDefault();
+                if (speechIsLoading) return;
+                playMessageAudio(text, props.conversationId);
+              }}
+            >
+                🔉 Audio
+						</Button>
+						<Spacer />
+						<Spinner size="sm" color="blue.300" display={speechIsLoading ? "block" : "none"} />
           </HStack>
         )}
 

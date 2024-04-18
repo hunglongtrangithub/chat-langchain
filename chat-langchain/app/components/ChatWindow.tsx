@@ -39,6 +39,7 @@ export function ChatWindow(props: {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [chatHistory, setChatHistory] = useState<
     { human: string; ai: string }[]
   >([]);
@@ -85,7 +86,7 @@ export function ChatWindow(props: {
 
   const { placeholder, titleText = "An LLM" } = props;
 
-  const sendMessage = async (message?: string, playAudio: boolean = false) => {
+  const sendMessage = async (message?: string) => {
     console.log("API Base Url:", apiBaseUrl);
     if (messageContainerRef.current) {
       messageContainerRef.current.classList.add("grow");
@@ -98,7 +99,12 @@ export function ChatWindow(props: {
     setInput("");
     setMessages((prevMessages) => [
       ...prevMessages,
-      { id: Math.random().toString(), content: messageValue, role: "user" },
+      {
+        id: Math.random().toString(),
+        content: messageValue,
+        text: messageValue,
+        role: "user",
+      },
     ]);
     setIsLoading(true);
 
@@ -152,9 +158,6 @@ export function ChatWindow(props: {
               { human: messageValue, ai: accumulatedMessage },
             ]);
             setIsLoading(false);
-            if (playAudio) {
-              playMessageAudio(accumulatedMessage);
-            }
             return;
           }
           if (msg.event === "error") {
@@ -197,12 +200,14 @@ export function ChatWindow(props: {
                 newMessages.push({
                   id: Math.random().toString(),
                   content: parsedResult.trim(),
+                  text: accumulatedMessage.trim(),
                   runId: runId,
                   sources: sources,
                   role: "assistant",
                 });
               } else if (newMessages[messageIndex] !== undefined) {
                 newMessages[messageIndex].content = parsedResult.trim();
+                newMessages[messageIndex].text = accumulatedMessage.trim();
                 newMessages[messageIndex].runId = runId;
                 newMessages[messageIndex].sources = sources;
               }
@@ -224,28 +229,6 @@ export function ChatWindow(props: {
     await sendMessage(question);
   };
 
-  const playMessageAudio = async (message: string) => {
-    console.log("play message audio for ", message);
-
-    const audioResponse = await fetch(apiBaseUrl + "/text_to_speech", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, conversationId }),
-    });
-
-    if (!audioResponse.ok) {
-      console.error("Failed to fetch audio");
-      toast.error("Failed to transform text to speech for AI response.");
-      return;
-    }
-
-    const audioBlob = await audioResponse.blob();
-    const audioUrl = URL.createObjectURL(audioBlob);
-    const audio = new Audio(audioUrl);
-    console.log("playing audio");
-    audio.play();
-  };
-
   const transcribeAndSendMessage = async (audioBlob: Blob) => {
     console.log("transcribe and send message");
 
@@ -253,6 +236,7 @@ export function ChatWindow(props: {
     formData.append("file", audioBlob, `${conversationId}.mp3`);
     formData.append("conversationId", conversationId);
 
+    setIsTranscribing(true);
     const response = await fetch(apiBaseUrl + "/transcribe_audio", {
       method: "POST",
       body: formData,
@@ -262,8 +246,10 @@ export function ChatWindow(props: {
       const data = await response.json();
       console.log(data);
       const userMessage = data.transcript;
-      await sendMessage(userMessage, true);
+      setIsTranscribing(false);
+      await sendMessage(userMessage);
     } else {
+      setIsTranscribing(false);
       toast.error("Failed to transform user audio to text.");
     }
   };
@@ -290,6 +276,7 @@ export function ChatWindow(props: {
             .map((m, index) => (
               <ChatMessageBubble
                 key={m.id}
+                conversationId={conversationId}
                 message={{ ...m }}
                 aiEmoji="🦜"
                 isMostRecent={index === 0}
@@ -306,7 +293,13 @@ export function ChatWindow(props: {
             colorScheme="blue"
             rounded={"full"}
             aria-label="Send"
-            icon={isRecording ? <MdStop /> : <MdMic />}
+            icon={
+              isRecording ?
+                <MdStop /> :
+              isTranscribing ?
+                <Spinner /> :
+              <MdMic />
+            }
             type="submit"
             onClick={(e) => {
               e.preventDefault();
