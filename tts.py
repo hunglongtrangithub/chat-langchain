@@ -101,7 +101,7 @@ class CoquiTTS:
             logger.error(f"Failed to load {self.model_name}: {e}")
             raise
         self.voice_path = Path(__file__).resolve().parent / "voices" / "ellie.mp3"
-        self.executor = ThreadPoolExecutor()
+        # self.executor = ThreadPoolExecutor()
         self.supported_languages = [
             "en",
             "es",
@@ -143,23 +143,22 @@ class CoquiTTS:
             raise
 
     async def arun(self, text: str, file_path: str):
-        try_create_directory(Path(file_path).resolve().parent)
+        # try_create_directory(Path(file_path).resolve().parent)
+        # try:
+        #     await asyncio.get_running_loop().run_in_executor(
+        #         self.executor,
+        #         self.run,
+        #         text,
+        #         file_path,
+        #     )
+        # except asyncio.CancelledError:
+        #     logger.info("Async TTS method was cancelled.")
+        #     raise
         try:
-            await asyncio.get_running_loop().run_in_executor(
-                self.executor,
-                self.run,
-                text,
-                file_path,
-            )
-        except asyncio.CancelledError:
-            logger.info("Async TTS method was cancelled.")
-            raise
+            self.run(text, file_path)
         except Exception as e:
             logger.error(f"Error in async TTS method: {e}")
             raise
-        finally:
-            logger.info("Shutting down executor.")
-            self.executor.shutdown(wait=False)
 
 
 class OpenAITTS:
@@ -279,8 +278,8 @@ class DummyOpenAITTS:
 
 
 # tts = OpenAITTS()
-# tts = CoquiTTS()
-tts = BarkSuno()
+tts = CoquiTTS()
+# tts = BarkSuno()
 if __name__ == "__main__":
     source_file = "./tests/audio/moe-moe-kyun.mp3"
     tts_model = DummyOpenAITTS(source_audio_file=source_file)

@@ -69,21 +69,19 @@ class WhisperSTT:
 
     async def arun(self, audio_path: str) -> str:
         try:
-            transcription = await asyncio.get_event_loop().run_in_executor(
-                self.executor,
-                self.run,
-                audio_path,
-            )
-            return transcription
-        except asyncio.CancelledError:
-            logger.info("Async transcription method was cancelled.")
-            raise
+            #     transcription = await asyncio.get_event_loop().run_in_executor(
+            #         self.executor,
+            #         self.run,
+            #         audio_path,
+            #     )
+            #     return transcription
+            # except asyncio.CancelledError:
+            #     logger.info("Async transcription method was cancelled.")
+            #     raise
+            return self.run(audio_path)
         except Exception as e:
             logger.error(f"Error in async transcription method: {e}")
             raise
-        finally:
-            logger.info("Shutting down executor.")
-            self.executor.shutdown(wait=False)
 
 
 class ReplicateWhisperSTT:
