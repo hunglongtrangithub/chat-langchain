@@ -22,7 +22,29 @@ from config import settings
 logger = get_logger(__name__)
 
 
-class CustomChatHuggingFace:
+class BaseChat:
+    def __init__(self):
+        logger.info("BaseChat initialized.")
+        self.executor = ThreadPoolExecutor()
+
+    def invoke(self, current_conversation: List[Dict[str, str]]) -> str:
+        return "This is a dummy response."
+
+    def stream(
+        self, current_conversation: List[Dict[str, str]]
+    ) -> Generator[str, None, None]:
+        yield "This is a dummy response."
+
+    async def ainvoke(self, current_conversation: List[Dict[str, str]]) -> str:
+        return "This is a dummy response."
+
+    async def astream(
+        self, current_conversation: List[Dict[str, str]]
+    ) -> AsyncGenerator[str, None]:
+        yield "This is a dummy response."
+
+
+class CustomChatHuggingFace(BaseChat):
     default_generation_kwargs = {
         # "truncation": True,
         # "max_length": 512,
@@ -69,7 +91,7 @@ class CustomChatHuggingFace:
         except Exception as e:
             logger.error(f"Failed to load model: {e}")
             raise
-        self.max_length = 512  # can modify this to be the max length of the model
+        self.max_length = 128  # can modify this to be the max length of the model
         self.generation_kwargs = generation_kwargs or self.default_generation_kwargs
         self.executor = ThreadPoolExecutor()
 
@@ -108,17 +130,19 @@ class CustomChatHuggingFace:
             raise
 
         tokenized_chat_history = self.tokenizer(
-            text=chat_history, return_tensors="pt"
+            text=chat_history, return_tensors="pt"  # type: ignore
         ).to(self.device)
 
-        tokenized_chat_history["input_ids"] = tokenized_chat_history["input_ids"][
+        tokenized_chat_history["input_ids"] = tokenized_chat_history["input_ids"][  # type: ignore
             :, -self.max_length :
         ]
-        tokenized_chat_history["attention_mask"] = tokenized_chat_history[
+        tokenized_chat_history["attention_mask"] = tokenized_chat_history[  # type: ignore
             "attention_mask"
-        ][:, -self.max_length :]
+        ][
+            :, -self.max_length :
+        ]
 
-        prompt_size = tokenized_chat_history["input_ids"].shape[1]
+        prompt_size = tokenized_chat_history["input_ids"].shape[1]  # type: ignore
         try:
             generated_tokens = self.model.generate(
                 **tokenized_chat_history,
@@ -141,7 +165,7 @@ class CustomChatHuggingFace:
         self, current_conversation: List[Dict[str, str]]
     ) -> Generator[str, None, None]:
         streamer = TextIteratorStreamer(
-            self.tokenizer, skip_prompt=True, skip_special_tokens=True
+            self.tokenizer, skip_prompt=True, skip_special_tokens=True  # type: ignore
         )
         chat_history = self.tokenizer.apply_chat_template(
             current_conversation,
@@ -151,15 +175,17 @@ class CustomChatHuggingFace:
         )
 
         tokenized_chat_history = self.tokenizer(
-            text=chat_history, return_tensors="pt"
+            text=chat_history, return_tensors="pt"  # type: ignore
         ).to(self.device)
 
-        tokenized_chat_history["input_ids"] = tokenized_chat_history["input_ids"][
+        tokenized_chat_history["input_ids"] = tokenized_chat_history["input_ids"][  # type: ignore
             :, -self.max_length :
         ]
-        tokenized_chat_history["attention_mask"] = tokenized_chat_history[
+        tokenized_chat_history["attention_mask"] = tokenized_chat_history[  # type: ignore
             "attention_mask"
-        ][:, -self.max_length :]
+        ][
+            :, -self.max_length :
+        ]
 
         thread = Thread(
             target=self.model.generate,
@@ -201,9 +227,6 @@ class CustomChatHuggingFace:
         except Exception as e:
             logger.error(f"Error in ainvoke method: {e}")
             raise
-        finally:
-            logger.info("Shutting down executor.")
-            self.executor.shutdown(wait=False)
 
     async def astream(
         self, current_conversation: list[dict[str, str]]
@@ -249,7 +272,7 @@ class CustomChatHuggingFace:
                     pass  # Expected, since we're cancelling the task
 
 
-class CustomChatOpenAI:
+class CustomChatOpenAI(BaseChat):
     def __init__(self, model_name: str = "gpt-3.5-turbo"):
         self.api_key = self._get_openai_api_key()
         self.client = openai.OpenAI(api_key=self.api_key)
@@ -334,7 +357,7 @@ class CustomChatOpenAI:
             raise
 
 
-class CustomChatLlamaReplicate:
+class CustomChatLlamaReplicate(BaseChat):
     default_system_prompt = "You are a helpful assistant."
 
     def __init__(self, model_name: str = "meta/llama-2-70b-chat"):
@@ -459,7 +482,7 @@ class CustomChatLlamaReplicate:
             raise
 
 
-class CustomChatGroq:
+class CustomChatGroq(BaseChat):
     default_generation_kwargs = {
         "temperature": 0.5,
         "max_tokens": 1024,
@@ -558,27 +581,6 @@ class CustomChatGroq:
         except Exception as e:
             self._handle_api_error(e)
             raise
-
-
-class DummyChat:
-    def __init__(self):
-        logger.info("DummyChat initialized.")
-
-    def invoke(self, current_conversation: List[Dict[str, str]]) -> str:
-        return "This is a dummy response."
-
-    def stream(
-        self, current_conversation: List[Dict[str, str]]
-    ) -> Generator[str, None, None]:
-        yield "This is a dummy response."
-
-    async def ainvoke(self, current_conversation: List[Dict[str, str]]) -> str:
-        return "This is a dummy response."
-
-    async def astream(
-        self, current_conversation: List[Dict[str, str]]
-    ) -> AsyncGenerator[str, None]:
-        yield "This is a dummy response."
 
 
 CHECKPOINT = "facebook/opt-125m"
