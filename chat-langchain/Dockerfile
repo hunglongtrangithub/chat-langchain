@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY package*.json yarn.lock ./
 RUN yarn install
-RUN yarn build --production
+RUN yarn build
 COPY . .
 
 EXPOSE 3000
