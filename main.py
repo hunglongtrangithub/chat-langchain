@@ -65,6 +65,22 @@ async def astream_generator(subscription: AsyncGenerator):
         yield "event: end\n\n\n"
 
 
+@app.post("/chat/ainvoke_log")
+async def chat(request: ChatRequest):
+    try:
+        response = chain.ainvoke_log(request)
+        logger.info(f"response: {response}")
+        raise
+        return response
+    except Exception as e:
+        error_message = f"Internal server error from endpoint /chat/ainvoke_log: {e}"
+        logger.error(error_message)
+        raise HTTPException(
+            status_code=500,
+            detail=error_message,
+        )
+
+
 @app.post("/chat/astream_log")
 async def achat(request: ChatRequest):
     subscription = chain.astream_log(request)

@@ -270,5 +270,13 @@ class RAGChain:
 
         yield "replace", "/final_output", {"output": response}
 
+    async def ainvoke_log(self, request: ChatRequest) -> Dict[str, Union[str, List]]:
+        docs = await self.aretrieve_documents(request)
+        text_streamer = self.aget_response_streamer_with_docs(request, docs)
+        response = ""
+        async for chunk in text_streamer:
+            response += chunk
+        return {"response": response, "docs": [doc.json() for doc in docs]}
+
 
 chain = RAGChain(retriever, chat_llm)
