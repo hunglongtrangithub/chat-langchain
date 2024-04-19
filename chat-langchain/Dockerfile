@@ -11,7 +11,7 @@ RUN yarn install --production
 COPY .en[v] ./
 COPY . .
 
-RUN yarn build
+RUN echo "API Base URL: $NEXT_PUBLIC_API_BASE_URL" && yarn build
 
 EXPOSE 3000
 CMD ["yarn", "start"]
