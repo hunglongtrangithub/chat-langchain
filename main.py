@@ -70,7 +70,6 @@ async def chat(request: ChatRequest):
     try:
         response = chain.ainvoke_log(request)
         logger.info(f"response: {response}")
-        raise
         return response
     except Exception as e:
         error_message = f"Internal server error from endpoint /chat/ainvoke_log: {e}"
