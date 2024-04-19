@@ -24,6 +24,7 @@ run:
 shell:
 	docker run -it --name $(CONTAINER_NAME) \
 		-p $(PORT):$(PORT) \
+		--entrypoint "/bin/sh" \
 		--mount type=bind,source=$(shell pwd),target=/app \
 		$(IMAGE_NAME) \
 		-c "/bin/sh"
