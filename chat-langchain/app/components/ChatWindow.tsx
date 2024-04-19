@@ -86,7 +86,7 @@ export function ChatWindow(props: {
 
   const { placeholder, titleText = "An LLM" } = props;
 
-  const sendMessage = async (message?: string) => {
+  const sendMessage = async (message?: string, noStream: boolean = false) => {
     console.log("API Base Url:", apiBaseUrl);
     if (messageContainerRef.current) {
       messageContainerRef.current.classList.add("grow");
@@ -137,6 +137,53 @@ export function ChatWindow(props: {
     try {
       const sourceStepName = "FindDocs";
       let streamedResponse: Record<string, any> = {};
+      if (noStream) {
+        await fetch(apiBaseUrl + "/chat/ainvoke_log", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            question: messageValue,
+            chat_history: chatHistory,
+          }),
+        })
+          .then(response => {
+            console.log(response);
+            if (!response.ok) {
+              throw new Error("Failed to fetch response from the server.");
+            }
+            return response.json();
+          })
+          .then((data) => {
+            console.log(data);
+            accumulatedMessage = data.response;
+            const parsedResult = marked.parse(data.response);
+            setMessages((prevMessages) => {
+              let newMessages = [...prevMessages];
+              newMessages.push({
+                id: Math.random().toString(),
+                content: parsedResult.trim(),
+                text: data.response.trim(),
+                runId: runId,
+                sources: data.docs.map(
+                  (doc: string) => ({
+                    url: JSON.parse(doc).metadata.source,
+                    title: JSON.parse(doc).metadata.title,
+                  }),
+                ),
+                role: "assistant",
+              });
+              return newMessages;
+            });
+          });
+        setChatHistory((prevChatHistory) => [
+              ...prevChatHistory,
+              { human: messageValue, ai: accumulatedMessage },
+            ]);
+        setIsLoading(false);
+        return;
+      }
       await fetchEventSource(apiBaseUrl + "/chat/astream_log", {
         method: "POST",
         headers: {
