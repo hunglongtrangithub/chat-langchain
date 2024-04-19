@@ -33,6 +33,10 @@ shell:
 stop:
 	docker stop $(CONTAINER_NAME)
 
+# Start the Docker container
+start:
+	docker start $(CONTAINER_NAME)
+
 # Remove the Docker container
 remove:
 	docker rm $(CONTAINER_NAME)

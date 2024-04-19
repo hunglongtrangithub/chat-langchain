@@ -7,7 +7,7 @@ LOG?=
 .PHONY: start format build run stop remove rebuild
 
 # Start the local server using uvicorn
-start:
+dev:
 	uvicorn main:app --reload --port $(PORT)
 
 # Format the code using black and isort
@@ -55,6 +55,10 @@ shell:
 # Stop the Docker container
 stop:
 	docker stop $(CONTAINER_NAME)
+
+# Start the Docker container
+start:
+	docker start $(CONTAINER_NAME)
 
 # Remove the Docker container
 remove:
