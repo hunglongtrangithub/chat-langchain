@@ -1,16 +1,13 @@
 from langchain.schema.vectorstore import VectorStoreRetriever
-from langchain.vectorstores.faiss import FAISS
-from langchain_openai import OpenAIEmbeddings
 from langchain.schema.document import Document
 
 from jinja2 import Template
-from pathlib import Path
 from typing import List, Optional, Dict, Tuple, Union, Generator, AsyncGenerator
 from pydantic import BaseModel, Field
 
 from logger_config import get_logger
 from custom_chat_model import BaseChat, chat_llm
-
+from vectorstore import vectorstore
 
 logger = get_logger(__name__)
 
@@ -87,15 +84,6 @@ Unknown Role: {{- message.content -}}\n
 {%- endfor %}"""
 
 NUM_DOCUMENTS = 6
-
-embeddings = OpenAIEmbeddings(chunk_size=200)
-
-vectorstore = FAISS.load_local(
-    str(Path(__file__).parent / "faiss_index"),
-    embeddings=embeddings,
-    allow_dangerous_deserialization=True,
-)
-logger.info("FAISS index loaded")
 retriever = vectorstore.as_retriever(search_kwargs=dict(k=NUM_DOCUMENTS))
 
 
