@@ -1,13 +1,19 @@
 """Load html from files, clean up, split, ingest into Weaviate."""
 
 import logging
-import os
 import re
 from parse import langchain_docs_extractor
+from typing import List
 
 from bs4 import BeautifulSoup, SoupStrainer
-from langchain.document_loaders import RecursiveUrlLoader, SitemapLoader
-from langchain_openai import OpenAIEmbeddings
+from langchain_community.document_loaders import (
+    RecursiveUrlLoader,
+    SitemapLoader,
+    DirectoryLoader,
+    ObsidianLoader,
+)
+from langchain_core.documents import Document
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.schema.embeddings import Embeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.utils.html import PREFIXES_TO_IGNORE_REGEX, SUFFIXES_TO_IGNORE_REGEX
@@ -30,6 +36,7 @@ def metadata_extractor(meta: dict, soup: BeautifulSoup) -> dict:
 
 
 def load_langchain_docs():
+    logger.info(f"Loading docs from LangChain site")
     return SitemapLoader(
         "https://python.langchain.com/sitemap.xml",
         filter_urls=["https://python.langchain.com/"],
@@ -50,6 +57,7 @@ def simple_extractor(html: str) -> str:
 
 
 def load_api_docs():
+    logger.info(f"Loading docs from LangChain API documentation")
     return RecursiveUrlLoader(
         url="https://api.python.langchain.com/en/latest/",
         max_depth=8,
@@ -70,34 +78,49 @@ def load_api_docs():
     ).load()
 
 
+def load_local_docs(path):
+    text_loader_kwargs = {
+        "autodetect_encoding": True,
+        "glob": "**/*.txt",
+        "show_progress": True,
+        "use_multi_threading": True,
+        "show_progress": True,
+    }
+
+    logger.info(f"Loading local clinical docs")
+    loader = DirectoryLoader(path, loader_kwargs=text_loader_kwargs)
+    raw_documents = loader.load()
+    return raw_documents
+
+
 def get_embeddings_model() -> Embeddings:
-    return OpenAIEmbeddings(chunk_size=200)
+    return HuggingFaceEmbeddings()
 
 
-def ingest_docs():
-    docs_from_documentation = load_langchain_docs()
-    logger.info(f"Loaded {len(docs_from_documentation)} docs from documentation")
-    docs_from_api = load_api_docs()
-    logger.info(f"Loaded {len(docs_from_api)} docs from API")
-
+def ingest_docs(
+    docs: List[Document],
+    vectorstore_name: str = "faiss_index",
+    save_local: bool = True,
+):
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
-    docs_transformed = text_splitter.split_documents(
-        docs_from_documentation + docs_from_api
-    )
+    docs_transformed = text_splitter.split_documents(docs)
 
-    # We try to return 'source' and 'title' metadata when querying vector store and
-    # Weaviate will error at query time if one of the attributes is missing from a
-    # retrieved document.
+    # Add metadata fields if they don't exist. This is necessary for the FAISS vectorstore.
     for doc in docs_transformed:
         if "source" not in doc.metadata:
             doc.metadata["source"] = ""
         if "title" not in doc.metadata:
             doc.metadata["title"] = ""
 
-    embedding = get_embeddings_model()
-    vectorstore = FAISS.from_documents(docs_transformed, embedding)
-    vectorstore.save_local("faiss_index")
+    if save_local:
+        embedding = get_embeddings_model()
+        vectorstore = FAISS.from_documents(docs_transformed, embedding)
+        vectorstore.save_local(f"index/{vectorstore_name}")
+
+    return docs_transformed
 
 
 if __name__ == "__main__":
-    ingest_docs()
+    path = "input/fake_patient1"
+    docs = load_local_docs(path)
+    ingest_docs(docs, "clinical_index")
