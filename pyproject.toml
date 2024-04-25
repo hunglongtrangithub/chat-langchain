@@ -37,6 +37,7 @@ langchain-openai = "^0.1.1"
 groq = "^0.4.2"
 pydantic-settings = "^2.2.1"
 unstructured = "^0.13.2"
+sentence-transformers = "^2.7.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.9.1"
