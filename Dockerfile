@@ -37,6 +37,6 @@ COPY ./*.py ./
 
 RUN poetry install --no-interaction --no-ansi
 
-COPY ./.en[v] ./
+COPY .env ./
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
