@@ -1,3 +1,4 @@
+from math import log
 from langchain.schema.vectorstore import VectorStoreRetriever
 from langchain.schema.document import Document
 
@@ -8,6 +9,13 @@ from pydantic import BaseModel, Field
 from logger_config import get_logger
 from custom_chat_model import BaseChat, chat_llm
 from vectorstore import vectorstore
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s: %(message)s",
+    filename="chat_history.log",
+)
 
 logger = get_logger(__name__)
 
@@ -31,6 +39,19 @@ class ChatRequest(BaseModel):
         }
 
 
+def log_chat_history(docs: List[Document], request: ChatRequest, response: str):
+    logging.info("=" * 80)
+    logging.info(f"Received request: {request.model_dump_json()}")
+    logging.info(
+        f"Retrieved {len(docs)} documents.\n"
+        + "\n".join(
+            [f"<doc id='{i}'>{doc.page_content}</doc>" for i, doc in enumerate(docs)]
+        )
+    )
+    logging.info(f"Generated response: {response}")
+
+
+# System prompt for Langchain chatbot
 SYSTEM_TEMPLATE = """\
 You are an expert programmer and problem-solver, tasked with answering any question \
 about Langchain.
@@ -63,6 +84,25 @@ not sure." Don't try to make up an answer. Anything between the preceding 'conte
 html blocks is retrieved from a knowledge bank, not part of the conversation with the \
 user.\
 """
+# System prompt for medical chatbot
+SYSTEM_TEMPLATE = """\
+You are an excellent medical assistant, tasked with answering any question about \
+medical information from the provided search results.
+
+Always answer as truthfully as possible, to the best of your knowledge and the \
+information provided in the search results.
+
+Anything between the following `context`  html blocks is retrieved from a knowledge \
+bank, not part of the conversation with the user. 
+
+<context>
+    {context} 
+<context/>
+
+REMEMBER: Anything between the preceding 'context' \
+html blocks is retrieved from a knowledge bank, not part of the conversation with the \
+user.\
+"""
 REPHRASE_TEMPLATE = """\
 Given the following conversation and a follow up question, rephrase the follow up \
 question to be a standalone question.
@@ -72,18 +112,20 @@ Chat History:
 Follow Up Input: {question}
 Standalone Question:"""
 
-
-CHAT_TEMPLATE_STRING = """{%- for message in messages %}
+# Jinja2 template for formatting chat history
+CHAT_TEMPLATE_STRING = """\
+{%- for message in messages %}
 {% if message.role == 'user' -%}
-Human: {{- message.content -}}\n
+Human: {{ message.content -}}\n
 {%- elif message.role == 'assistant' -%}
-AI: {{- message.content -}}\n
+AI: {{ message.content -}}\n
 {%- else -%}
-Unknown Role: {{- message.content -}}\n
-{%- endif %}
-{%- endfor %}"""
+Unknown Role: {{ message.content -}}\n
+{%- endif -%}
+{%- endfor -%}\
+"""
 
-NUM_DOCUMENTS = 6
+NUM_DOCUMENTS = 3
 retriever = vectorstore.as_retriever(search_kwargs=dict(k=NUM_DOCUMENTS))
 
 
@@ -117,7 +159,7 @@ class RAGChain:
         if chat_history:
             try:
                 template = Template(CHAT_TEMPLATE_STRING)
-                serialized_chat_history = template.render(messages=chat_history)
+                serialized_chat_history = template.render(messages=chat_history).strip()
             except Exception as e:
                 logger.error("Error occurred while applying template to chat history.")
                 serialized_chat_history = ""
@@ -148,7 +190,7 @@ class RAGChain:
         if chat_history:
             try:
                 template = Template(CHAT_TEMPLATE_STRING)
-                serialized_chat_history = template.render(messages=chat_history)
+                serialized_chat_history = template.render(messages=chat_history).strip()
             except Exception as e:
                 logger.error("Error occurred while applying template to chat history")
                 serialized_chat_history = ""
@@ -235,7 +277,7 @@ class RAGChain:
         async for chunk in text_streamer:
             response += chunk
             yield "add", "/streamed_output/-", chunk
-
+        log_chat_history(docs, request, response)
         yield "replace", "/final_output", {"output": response}
 
     def stream_log(
@@ -255,7 +297,7 @@ class RAGChain:
         for chunk in text_streamer:
             response += chunk
             yield "add", "/streamed_output/-", chunk
-
+        log_chat_history(docs, request, response)
         yield "replace", "/final_output", {"output": response}
 
     async def ainvoke_log(self, request: ChatRequest) -> Dict[str, Union[str, List]]:
@@ -264,6 +306,7 @@ class RAGChain:
         response = ""
         async for chunk in text_streamer:
             response += chunk
+        log_chat_history(docs, request, response)
         return {"response": response, "docs": [doc.json() for doc in docs]}
 
 
