@@ -3,7 +3,7 @@ IMAGE_NAME=chat-frontend
 CONTAINER_NAME=chat-frontend
 PORT=3000
 LOG?=
-.PHONY: build run stop remove rebuild
+.PHONY: build dev stop remove rebuild
 
 # Build the Docker image
 build:
@@ -11,7 +11,7 @@ build:
 
 
 # Run the Docker container
-run:
+dev:
 	docker run --name $(CONTAINER_NAME) \
 		-p $(PORT):$(PORT) \
 		--entrypoint "/bin/sh" \
