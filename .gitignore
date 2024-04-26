@@ -150,5 +150,6 @@ audio/
 # ignore model directory
 llm_llama/
 
-# ignore docs directory
+# ignore docs and index directories
 docs/
+index/
