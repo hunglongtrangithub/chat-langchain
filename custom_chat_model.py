@@ -2,7 +2,6 @@ import logging
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
-    # BitsAndBytesConfig,
     TextIteratorStreamer,
 )
 from huggingface_hub import login
@@ -79,15 +78,10 @@ class CustomChatHuggingFace(BaseChat):
             logger.error(f"Failed to load tokenizer: {e}")
             raise
         try:
-            # quantization_config = BitsAndBytesConfig(
-            #     load_in_4bit=True,
-            #     bnb_4bit_compute_dtype=torch.bfloat16,
-            # )
             self.model = (
                 AutoModelForCausalLM.from_pretrained(
                     checkpoint,
                     device_map="auto",
-                    # quantization_config=quantization_config,
                 )
                 if not model
                 else model
@@ -218,62 +212,25 @@ class CustomChatHuggingFace(BaseChat):
         return generator()
 
     async def ainvoke(self, current_conversation: list[dict[str, str]]) -> str:
-        loop = asyncio.get_running_loop()
         try:
-            # offload the synchronous invoke method to the executor to run it in a separate thread
-            response = await loop.run_in_executor(
-                self.executor, self.invoke, current_conversation
-            )
-            return response
-        except asyncio.CancelledError:
-            logger.info("ainvoke method was cancelled.")
-            raise
+            return self.invoke(current_conversation)
         except Exception as e:
-            logger.error(f"Error in ainvoke method: {e}")
+            logger.error(
+                f"Error in ainvoke generator: {e}",
+            )
             raise
 
     async def astream(
         self, current_conversation: list[dict[str, str]]
     ) -> AsyncGenerator[str, None]:
-        loop = asyncio.get_running_loop()
-
-        # A queue to communicate between the background task and the async generator
-        queue = asyncio.Queue()
-
-        def background_task():
-            try:
-                for item in self.stream(current_conversation):
-                    loop.call_soon_threadsafe(queue.put_nowait, item)
-            except Exception as e:
-                logger.error(
-                    f"Error in background task: {e}",
-                    exc_info=True,
-                    stack_info=True,
-                )
-                loop.call_soon_threadsafe(queue.put_nowait, e)
-            finally:
-                loop.call_soon_threadsafe(queue.put_nowait, None)  # Signal completion
-
-        # Start the synchronous generator in a separate thread
-        bg_task = loop.run_in_executor(self.executor, background_task)
-
-        # Async generator to yield items back in the async context
         try:
-            while True:
-                item = await queue.get()
-                if item is None:
-                    break
-                if isinstance(item, Exception):
-                    raise item
+            for item in self.stream(current_conversation):
                 yield item
-        finally:
-            # If the generator exits for any reason, ensure the background task is cancelled
-            if not bg_task.done():
-                bg_task.cancel()
-                try:
-                    await bg_task  # Await the task to allow cancellation to propagate
-                except asyncio.CancelledError:
-                    pass  # Expected, since we're cancelling the task
+        except Exception as e:
+            logger.error(
+                f"Error in astream generator: {e}",
+            )
+            raise
 
 
 class CustomChatOpenAI(BaseChat):
