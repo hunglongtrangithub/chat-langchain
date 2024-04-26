@@ -94,6 +94,7 @@ def load_local_docs(path):
 
 
 def get_embeddings_model() -> Embeddings:
+    # using default model: sentence-transformers/all-mpnet-base-v2
     return HuggingFaceEmbeddings()
 
 
@@ -121,6 +122,7 @@ def ingest_docs(
 
 
 if __name__ == "__main__":
-    path = "input/fake_patient1"
-    docs = load_local_docs(path)
-    ingest_docs(docs, "clinical_index")
+    # path = "docs/fake_patient1"
+    # docs = load_local_docs(path)
+    docs = load_langchain_docs() + load_api_docs()
+    ingest_docs(docs, "langchain_index")
