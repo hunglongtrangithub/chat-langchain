@@ -1,19 +1,17 @@
-import logging
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     TextIteratorStreamer,
 )
+from typing import Dict, AsyncGenerator, Generator, Optional, Union, List
+from jinja2.exceptions import TemplateError
+
 from huggingface_hub import login
+from threading import Thread
 import torch
 import openai
 import replicate
 import groq
-from threading import Thread
-from typing import Dict, AsyncGenerator, Generator, Optional, Union, List
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
-from jinja2.exceptions import TemplateError
 
 from logger_config import get_logger
 from config import settings
@@ -25,7 +23,6 @@ logger = get_logger(__name__)
 class BaseChat:
     def __init__(self):
         logger.info("BaseChat initialized.")
-        self.executor = ThreadPoolExecutor()
 
     def invoke(self, current_conversation: List[Dict[str, str]]) -> str:
         return "This is a dummy response."
@@ -91,7 +88,6 @@ class CustomChatHuggingFace(BaseChat):
             raise
         self.max_length = 128  # can modify this to be the max length of the model
         self.generation_kwargs = generation_kwargs or self.default_generation_kwargs
-        self.executor = ThreadPoolExecutor()
 
         logger.info(f"{checkpoint} initialized.")
         logger.info("Initialized on device: {}".format(self.device))

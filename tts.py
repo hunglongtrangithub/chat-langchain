@@ -4,14 +4,14 @@ from pathlib import Path
 import requests
 from typing import BinaryIO
 import os
+import asyncio
+
 from openai import OpenAI, AsyncOpenAI
 import replicate
 from langdetect import detect
 from TTS.api import TTS
 from transformers import AutoProcessor, BarkModel
 import torch
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
 
 from logger_config import get_logger
 from config import settings
@@ -44,7 +44,7 @@ class BarkSuno:
         self.model_name = "suno/bark-small"
         self.processor = AutoProcessor.from_pretrained(self.model_name)
         self.model = BarkModel.from_pretrained(self.model_name)
-        self.executor = ThreadPoolExecutor()
+
         logger.info(f"{self.model_name} initialized.")
 
     def run(self, text: str, file_path: str):
@@ -69,23 +69,11 @@ class BarkSuno:
             raise
 
     async def arun(self, text: str, file_path: str):
-        try_create_directory(Path(file_path).resolve().parent)
         try:
-            await asyncio.get_running_loop().run_in_executor(
-                self.executor,
-                self.run,
-                text,
-                file_path,
-            )
-        except asyncio.CancelledError:
-            logger.info("Async TTS method was cancelled.")
-            raise
+            self.run(text, file_path)
         except Exception as e:
-            logger.error(f"Error in async TTS method: {e}")
+            logger.error(f"Error in async BarkSuno method: {e}")
             raise
-        finally:
-            logger.info("Shutting down executor.")
-            self.executor.shutdown(wait=False)
 
 
 class CoquiTTS:
@@ -101,7 +89,7 @@ class CoquiTTS:
             logger.error(f"Failed to load {self.model_name}: {e}")
             raise
         self.voice_path = Path(__file__).resolve().parent / "voices" / "ellie.mp3"
-        # self.executor = ThreadPoolExecutor()
+
         self.supported_languages = [
             "en",
             "es",
@@ -143,17 +131,6 @@ class CoquiTTS:
             raise
 
     async def arun(self, text: str, file_path: str):
-        # try_create_directory(Path(file_path).resolve().parent)
-        # try:
-        #     await asyncio.get_running_loop().run_in_executor(
-        #         self.executor,
-        #         self.run,
-        #         text,
-        #         file_path,
-        #     )
-        # except asyncio.CancelledError:
-        #     logger.info("Async TTS method was cancelled.")
-        #     raise
         try:
             self.run(text, file_path)
         except Exception as e:

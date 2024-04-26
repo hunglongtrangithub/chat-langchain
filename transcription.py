@@ -1,13 +1,13 @@
-import torch
 from typing import BinaryIO
-from openai import OpenAI, AsyncOpenAI
-from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
-import replicate
 import asyncio
 from pathlib import Path
 
+import torch
+from openai import OpenAI, AsyncOpenAI
+from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
+import replicate
+
 from logger_config import get_logger
-from concurrent.futures import ThreadPoolExecutor
 from config import settings
 
 logger = get_logger(__name__)
@@ -48,7 +48,7 @@ class WhisperSTT:
             torch_dtype=self.torch_dtype,
             device=self.device,
         )
-        self.executor = ThreadPoolExecutor()
+
         logger.info(f"{self.model_name} initialized.")
         logger.info("Initialized on device: {}".format(self.device))
         if self.device == torch.device("cuda"):
@@ -69,15 +69,6 @@ class WhisperSTT:
 
     async def arun(self, audio_path: str) -> str:
         try:
-            #     transcription = await asyncio.get_event_loop().run_in_executor(
-            #         self.executor,
-            #         self.run,
-            #         audio_path,
-            #     )
-            #     return transcription
-            # except asyncio.CancelledError:
-            #     logger.info("Async transcription method was cancelled.")
-            #     raise
             return self.run(audio_path)
         except Exception as e:
             logger.error(f"Error in async transcription method: {e}")
