@@ -13,7 +13,7 @@ import logging
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(levelname)s: %(message)s",
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     filename="chat_history.log",
 )
 
@@ -39,9 +39,12 @@ class ChatRequest(BaseModel):
         }
 
 
-def log_chat_history(docs: List[Document], request: ChatRequest, response: str):
+def log_chat_history(
+    query_question: str, docs: List[Document], request: ChatRequest, response: str
+):
     logging.info("=" * 80)
     logging.info(f"Received request: {request.model_dump_json()}")
+    logging.info(f"Query question: {query_question}")
     logging.info(
         f"Retrieved {len(docs)} documents.\n"
         + "\n".join(
@@ -86,11 +89,11 @@ user.\
 """
 # System prompt for medical chatbot
 SYSTEM_TEMPLATE = """\
-You are an excellent medical assistant, tasked with answering any question about \
-medical information from the provided search results.
+You are a student, tasked with answering any question about the provided search \
+results.
 
-Always answer as truthfully as possible, to the best of your knowledge and the \
-information provided in the search results.
+If there is no relevant information within the context, just say "Hmm, I'm not sure." \
+Do not make up an answer.
 
 Anything between the following `context`  html blocks is retrieved from a knowledge \
 bank, not part of the conversation with the user. 
@@ -99,7 +102,8 @@ bank, not part of the conversation with the user.
     {context} 
 <context/>
 
-REMEMBER: Anything between the preceding 'context' \
+REMEMBER: If there is no relevant information within the context, just say "Hmm, I'm \
+not sure." Don't try to make up an answer. Anything between the preceding 'context' \
 html blocks is retrieved from a knowledge bank, not part of the conversation with the \
 user.\
 """
@@ -152,9 +156,11 @@ class RAGChain:
 
         return formatted_chat_history
 
-    async def aretrieve_documents(self, request: ChatRequest) -> List[Document]:
+    async def aretrieve_documents(
+        self, request: ChatRequest
+    ) -> Tuple[str, List[Document]]:
         chat_history = self.format_chat_history(request.chat_history)
-        question = request.question
+        query_question = request.question
 
         if chat_history:
             try:
@@ -165,27 +171,27 @@ class RAGChain:
                 serialized_chat_history = ""
 
             rephrase_question_prompt = REPHRASE_TEMPLATE.format(
-                chat_history=serialized_chat_history, question=question
+                chat_history=serialized_chat_history, question=query_question
             )
             try:
                 rephrased_question = await self.chat_llm.ainvoke(
                     [{"role": "user", "content": rephrase_question_prompt}],
                 )
-                question = rephrased_question.strip()
+                query_question = rephrased_question.strip()
             except Exception as e:
                 logger.error(
                     "Error occurred while invoking chat model to rephrase question."
                 )
         try:
-            docs = await self.retriever.aget_relevant_documents(question)
+            docs = await self.retriever.aget_relevant_documents(query_question)
         except Exception as e:
             logger.error("Error occurred while retrieving documents:", e)
             docs = []
-        return docs
+        return query_question, docs
 
-    def retrieve_documents(self, request: ChatRequest) -> List[Document]:
+    def retrieve_documents(self, request: ChatRequest) -> Tuple[str, List[Document]]:
         chat_history = self.format_chat_history(request.chat_history)
-        question = request.question
+        query_question = request.question
 
         if chat_history:
             try:
@@ -196,23 +202,23 @@ class RAGChain:
                 serialized_chat_history = ""
 
             rephrase_question_prompt = REPHRASE_TEMPLATE.format(
-                chat_history=serialized_chat_history, question=question
+                chat_history=serialized_chat_history, question=query_question
             )
             try:
                 rephrased_question = self.chat_llm.invoke(
                     [{"role": "user", "content": rephrase_question_prompt}],
                 )
-                question = rephrased_question.strip()
+                query_question = rephrased_question.strip()
             except Exception as e:
                 logger.error(
                     "Error occurred while invoking chat model to rephrase question",
                 )
         try:
-            docs = self.retriever.get_relevant_documents(question)
+            docs = self.retriever.get_relevant_documents(query_question)
         except Exception as e:
             logger.error("Error occurred while retrieving documents:", e)
             docs = []
-        return docs
+        return query_question, docs
 
     def get_response_streamer_with_docs(
         self, request: ChatRequest, docs: List[Document]
@@ -265,7 +271,7 @@ class RAGChain:
     ) -> AsyncGenerator[Tuple[str, str, Union[Dict, str, List]], None]:
         yield "replace", "", {}
 
-        docs = await self.aretrieve_documents(request)
+        query_question, docs = await self.aretrieve_documents(request)
         formatted_docs = [doc.json() for doc in docs]
         yield "add", "/logs", {}
         yield "add", "/logs/FindDocs", {}
@@ -277,13 +283,13 @@ class RAGChain:
         async for chunk in text_streamer:
             response += chunk
             yield "add", "/streamed_output/-", chunk
-        log_chat_history(docs, request, response)
+        log_chat_history(query_question, docs, request, response)
         yield "replace", "/final_output", {"output": response}
 
     def stream_log(
         self, request: ChatRequest
     ) -> Generator[Tuple[str, str, Union[Dict, str, List]], None, None]:
-        docs = self.retrieve_documents(request)
+        query_question, docs = self.retrieve_documents(request)
         formatted_docs = [doc.json() for doc in docs]
         text_streamer = self.get_response_streamer_with_docs(request, docs)
 
@@ -297,16 +303,16 @@ class RAGChain:
         for chunk in text_streamer:
             response += chunk
             yield "add", "/streamed_output/-", chunk
-        log_chat_history(docs, request, response)
+        log_chat_history(query_question, docs, request, response)
         yield "replace", "/final_output", {"output": response}
 
     async def ainvoke_log(self, request: ChatRequest) -> Dict[str, Union[str, List]]:
-        docs = await self.aretrieve_documents(request)
+        query_question, docs = await self.aretrieve_documents(request)
         text_streamer = self.aget_response_streamer_with_docs(request, docs)
         response = ""
         async for chunk in text_streamer:
             response += chunk
-        log_chat_history(docs, request, response)
+        log_chat_history(query_question, docs, request, response)
         return {"response": response, "docs": [doc.json() for doc in docs]}
 
 
