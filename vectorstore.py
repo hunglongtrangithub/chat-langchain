@@ -8,7 +8,7 @@ logger = get_logger(__name__)
 
 embeddings = get_embeddings_model()
 
-vectorstore_name = "faiss_index"
+vectorstore_name = "langchain_index"
 
 vectorstore = FAISS.load_local(
     str(Path(__file__).parent / f"index/{vectorstore_name}"),
