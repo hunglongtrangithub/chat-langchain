@@ -1,3 +1,4 @@
+import logging
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -17,7 +18,7 @@ from jinja2.exceptions import TemplateError
 
 from logger_config import get_logger
 from config import settings
-
+from chat_templates import CHAT_TEMPLATES
 
 logger = get_logger(__name__)
 
@@ -70,6 +71,9 @@ class CustomChatHuggingFace(BaseChat):
                 AutoTokenizer.from_pretrained(checkpoint)
                 if not tokenizer
                 else tokenizer
+            )
+            self.tokenizer.chat_template = CHAT_TEMPLATES.get(
+                checkpoint, self.tokenizer.default_chat_template
             )
         except Exception as e:
             logger.error(f"Failed to load tokenizer: {e}")
@@ -583,8 +587,10 @@ class CustomChatGroq(BaseChat):
             raise
 
 
-CHECKPOINT = "facebook/opt-125m"
-# CHECKPOINT = "meta-llama/Llama-2-70b-chat-hf"
+# CHECKPOINT = "facebook/opt-125m"
+CHECKPOINT = "meta-llama/Llama-2-7b-chat-hf"
+# CHECKPOINT = "georgesung/llama2_7b_chat_uncensored"
+# CHECKPOINT = "Tap-M/Luna-AI-Llama2-Uncensored"
 chat_llm = CustomChatHuggingFace(CHECKPOINT)
 
 # from llm_llama.model_generator.llm_pipeline import load_fine_tuned_model
