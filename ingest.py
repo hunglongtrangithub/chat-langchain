@@ -19,8 +19,6 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.utils.html import PREFIXES_TO_IGNORE_REGEX, SUFFIXES_TO_IGNORE_REGEX
 from langchain.vectorstores.faiss import FAISS
 
-logger = logging.getLogger(__name__)
-
 
 def metadata_extractor(meta: dict, soup: BeautifulSoup) -> dict:
     title = soup.find("title")
@@ -36,7 +34,7 @@ def metadata_extractor(meta: dict, soup: BeautifulSoup) -> dict:
 
 
 def load_langchain_docs():
-    logger.info(f"Loading docs from LangChain site")
+    print(f"Loading docs from LangChain site")
     return SitemapLoader(
         "https://python.langchain.com/sitemap.xml",
         filter_urls=["https://python.langchain.com/"],
@@ -57,7 +55,7 @@ def simple_extractor(html: str) -> str:
 
 
 def load_api_docs():
-    logger.info(f"Loading docs from LangChain API documentation")
+    print(f"Loading docs from LangChain API documentation")
     return RecursiveUrlLoader(
         url="https://api.python.langchain.com/en/latest/",
         max_depth=8,
@@ -85,11 +83,14 @@ def load_local_docs(path):
         "show_progress": True,
         "use_multi_threading": True,
         "show_progress": True,
+        "recursive": True,
     }
 
-    logger.info(f"Loading local clinical docs")
+    print(f"Loading local clinical docs from {path}")
     loader = DirectoryLoader(path, loader_kwargs=text_loader_kwargs)
     raw_documents = loader.load()
+
+    print(f"Loaded {len(raw_documents)} documents")
     return raw_documents
 
 
@@ -98,15 +99,15 @@ def get_embeddings_model() -> Embeddings:
     return HuggingFaceEmbeddings()
 
 
-def ingest_docs(
+def ingest_langchain_docs(
     docs: List[Document],
-    vectorstore_name: str = "faiss_index",
+    vectorstore_name: str = "langchain_index",
     save_local: bool = True,
 ):
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
     docs_transformed = text_splitter.split_documents(docs)
 
-    # Add metadata fields if they don't exist. This is necessary for the FAISS vectorstore.
+    # Add metadata fields if they don't exist.
     for doc in docs_transformed:
         if "source" not in doc.metadata:
             doc.metadata["source"] = ""
@@ -121,8 +122,35 @@ def ingest_docs(
     return docs_transformed
 
 
+def ingest_clinical_docs(
+    docs: List[Document],
+    vectorstore_name: str = "clinical_index",
+    save_local: bool = True,
+):
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
+    docs_transformed = text_splitter.split_documents(docs)
+
+    # Add metadata fields if they don't exist.
+    for doc in docs_transformed:
+        if "title" not in doc.metadata and "source" in doc.metadata:
+            # Use the filename as the title if it doesn't exist.
+            doc.metadata["title"] = doc.metadata["source"].split("/")[-1]
+        if "source" not in doc.metadata:
+            doc.metadata["source"] = ""
+        if "title" not in doc.metadata:
+            doc.metadata["title"] = ""
+
+    if save_local:
+        embedding = get_embeddings_model()
+        vectorstore = FAISS.from_documents(docs_transformed, embedding)
+        vectorstore.save_local(f"index/{vectorstore_name}")
+
+    return docs_transformed
+
+
 if __name__ == "__main__":
-    # path = "docs/fake_patient1"
-    # docs = load_local_docs(path)
-    docs = load_langchain_docs() + load_api_docs()
-    ingest_docs(docs, "langchain_index")
+    path = "docs"
+    docs = load_local_docs(path)
+    ingest_clinical_docs(docs, "clinical_index")
+    # docs = load_langchain_docs() + load_api_docs()
+    # ingest_docs(docs, "langchain_index")
