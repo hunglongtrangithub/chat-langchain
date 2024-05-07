@@ -58,7 +58,7 @@ class BarkSuno:
             audio_array = self.model.generate(**inputs)  # type: ignore
             audio_array = audio_array.cpu().numpy().squeeze()
 
-            sampling_rate = model.generation_config.sample_rate  # type: ignore
+            sampling_rate = self.model.generation_config.sample_rate  # type: ignore
             scipy.io.wavfile.write(
                 file_path,
                 rate=sampling_rate,
