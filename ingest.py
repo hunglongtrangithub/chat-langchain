@@ -1,19 +1,17 @@
 """Load html from files, clean up, split, ingest into Weaviate."""
 
-import logging
 import re
 from parse import langchain_docs_extractor
 from typing import List
 
 from bs4 import BeautifulSoup, SoupStrainer
-from langchain_community.document_loaders import (
-    RecursiveUrlLoader,
-    SitemapLoader,
-    DirectoryLoader,
-    ObsidianLoader,
-)
+
+from langchain_community.document_loaders.recursive_url_loader import RecursiveUrlLoader
+from langchain_community.document_loaders.sitemap import SitemapLoader
+from langchain_community.document_loaders.directory import DirectoryLoader
+
 from langchain_core.documents import Document
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.embeddings.huggingface import HuggingFaceEmbeddings
 from langchain.schema.embeddings import Embeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.utils.html import PREFIXES_TO_IGNORE_REGEX, SUFFIXES_TO_IGNORE_REGEX
@@ -27,8 +25,8 @@ def metadata_extractor(meta: dict, soup: BeautifulSoup) -> dict:
     return {
         "source": meta["loc"],
         "title": title.get_text() if title else "",
-        "description": description.get("content", "") if description else "",
-        "language": html.get("lang", "") if html else "",
+        "description": description.get("content", "") if description else "",  # type: ignore
+        "language": html.get("lang", "") if html else "",  # type: ignore
         **meta,
     }
 
@@ -77,17 +75,36 @@ def load_api_docs():
 
 
 def load_local_docs(path):
-    text_loader_kwargs = {
-        "autodetect_encoding": True,
-        "glob": "**/*.txt",
-        "show_progress": True,
-        "use_multi_threading": True,
-        "show_progress": True,
-        "recursive": True,
-    }
-
     print(f"Loading local clinical docs from {path}")
-    loader = DirectoryLoader(path, loader_kwargs=text_loader_kwargs)
+    loader = DirectoryLoader(
+        path,
+        glob="**/*.txt",
+        show_progress=True,
+        use_multithreading=True,
+        recursive=True,
+    )
+    raw_documents = loader.load()
+
+    print(f"Loaded {len(raw_documents)} documents")
+    return raw_documents
+
+
+def load_huggingface_nlp_course_docs():
+    print(f"Loading sites from HuggingFace NLP course")
+    loader = RecursiveUrlLoader(
+        url="https://huggingface.co/learn/nlp-course/en/",
+        max_depth=3,
+        extractor=simple_extractor,
+        prevent_outside=True,
+        use_async=True,
+        timeout=600,
+        # Drop trailing / to avoid duplicate pages.
+        link_regex=(
+            f"href=[\"']{PREFIXES_TO_IGNORE_REGEX}((?:{SUFFIXES_TO_IGNORE_REGEX}.)*?)"
+            r"(?:[\#'\"]|\/[\#'\"])"
+        ),
+        check_response_status=True,
+    )
     raw_documents = loader.load()
 
     print(f"Loaded {len(raw_documents)} documents")
@@ -122,7 +139,7 @@ def ingest_langchain_docs(
     return docs_transformed
 
 
-def ingest_clinical_docs(
+def ingest_local_docs(
     docs: List[Document],
     vectorstore_name: str = "clinical_index",
     save_local: bool = True,
@@ -151,6 +168,12 @@ def ingest_clinical_docs(
 if __name__ == "__main__":
     path = "docs"
     docs = load_local_docs(path)
-    ingest_clinical_docs(docs, "clinical_index")
+    ingest_local_docs(docs, "clinical_index")
     # docs = load_langchain_docs() + load_api_docs()
     # ingest_docs(docs, "langchain_index")
+
+    # docs = load_huggingface_nlp_course_docs()
+    # ingest_langchain_docs(docs, "huggingface_index")
+    # path = "docs/Essentials of Anatomy and Physiology ( PDFDrive ).pdf"
+    # docs = PyPDFLoader(path).load()
+    # ingest_local_docs(docs, "clinical_textbook_index")
