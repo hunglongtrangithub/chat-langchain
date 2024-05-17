@@ -15,13 +15,26 @@ import json
 from starlette.background import BackgroundTask
 
 from logger_config import get_logger
-from rag_chain import ChatRequest, chain
-from tts import tts
-from transcription import transcribe
+from vectorstore import get_vectorstore
+from custom_chat_model import CustomChatHuggingFace
+from rag_chain import ChatRequest, RAGChain
+from tts import CoquiTTS
+from transcription import WhisperSTT
 from config import settings
 
 logger = get_logger(__name__)
 
+
+CHECKPOINT = "meta-llama/Meta-Llama-3-8B-Instruct"
+chat_model = CustomChatHuggingFace(CHECKPOINT)
+
+vectorstore = get_vectorstore("clinical_index")
+
+chain = RAGChain(vectorstore, chat_model)
+
+# tts = CoquiTTS()
+
+# transcribe = WhisperSTT()
 
 app = FastAPI()
 app.add_middleware(

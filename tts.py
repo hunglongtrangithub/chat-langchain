@@ -9,6 +9,7 @@ import asyncio
 from openai import OpenAI, AsyncOpenAI
 import replicate
 from langdetect import detect
+
 from TTS.api import TTS
 from transformers import AutoProcessor, BarkModel
 import torch
@@ -254,17 +255,14 @@ class DummyOpenAITTS:
             raise
 
 
-# tts = OpenAITTS()
-tts = CoquiTTS()
-# tts = BarkSuno()
 if __name__ == "__main__":
     source_file = "./tests/audio/moe-moe-kyun.mp3"
-    tts_model = DummyOpenAITTS(source_audio_file=source_file)
+    tts_model = DummyOpenAITTS(source_file)
 
-    tts_model.run("Hello, this is a test.", "./tests/dummy_speech_sync.mp3")
+    tts_model.run("Hello, this is a test.", "./tests/test_speech_sync.mp3")
 
     # For the async method, run it in an event loop
     async def main():
-        await tts_model.arun("Hello, this is a test.", "./tests/dummy_speech_async.mp3")
+        await tts_model.arun("Hello, this is a test.", "./tests/test_speech_async.mp3")
 
     asyncio.run(main())

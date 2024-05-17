@@ -1,57 +1,16 @@
-from math import log
-from langchain.schema.vectorstore import VectorStoreRetriever
 from langchain.schema.document import Document
+from langchain.vectorstores.faiss import FAISS
 
 from jinja2 import Template
 from typing import List, Optional, Dict, Tuple, Union, Generator, AsyncGenerator
 from pydantic import BaseModel, Field
 
 from logger_config import get_logger
-from custom_chat_model import BaseChat, chat_llm
-from vectorstore import vectorstore
+from retriever import CustomRetriever
+from custom_chat_model import BaseChat
 import logging
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    filename="chat_history.log",
-)
-
 logger = get_logger(__name__)
-
-
-class ChatRequest(BaseModel):
-    question: str = Field(..., examples=["What's the weather like today?"])
-    chat_history: Optional[List[Dict[str, str]]] = None
-
-    class Config:
-        schema_extra = {
-            "example": {
-                "question": "Tell me more about the solar system.",
-                "chat_history": [
-                    {"human": "hello", "ai": "Hello! How can I assist you today?"},
-                    {
-                        "human": "What's the largest planet in our solar system?",
-                        "ai": "The largest planet in our solar system is Jupiter.",
-                    },
-                ],
-            }
-        }
-
-
-def log_chat_history(
-    query_question: str, docs: List[Document], request: ChatRequest, response: str
-):
-    logging.info("=" * 80)
-    logging.info(f"Received request: {request.model_dump_json()}")
-    logging.info(f"Query question: {query_question}")
-    logging.info(
-        f"Retrieved {len(docs)} documents.\n"
-        + "\n".join(
-            [f"<doc id='{i}'>{doc.page_content}</doc>" for i, doc in enumerate(docs)]
-        )
-    )
-    logging.info(f"Generated response: {response}")
 
 
 # System prompt for Langchain chatbot
@@ -89,8 +48,24 @@ user.\
 """
 # System prompt for medical chatbot
 SYSTEM_TEMPLATE = """\
-You are a student, tasked with answering any question about the provided search \
+You are a medical expert, tasked with answering any question about the provided search \
 results.
+
+Generate a comprehensive and informative answer of 80 words or less for the \
+given question based solely on the provided search results. You must \
+only use information from the provided search results. Use an unbiased and \
+journalistic tone. Combine search results together into a coherent answer. Do not \
+repeat text. Cite search results using [${{number}}] notation. Only cite the most \
+relevant results that answer the question accurately. Place these citations at the end \
+of the sentence or paragraph that reference them - do not put them all at the end. If \
+different results refer to different entities within the same name, write separate \
+answers for each entity.
+
+You should use bullet points in your answer for readability. Put citations where they apply
+rather than putting them all at the end.
+
+If there is nothing in the context relevant to the question at hand, just say "Hmm, \
+I'm not sure." Don't try to make up an answer.
 
 If there is no relevant information within the context, just say "Hmm, I'm not sure." \
 Do not make up an answer.
@@ -107,6 +82,7 @@ not sure." Don't try to make up an answer. Anything between the preceding 'conte
 html blocks is retrieved from a knowledge bank, not part of the conversation with the \
 user.\
 """
+
 REPHRASE_TEMPLATE = """\
 Given the following conversation and a follow up question, rephrase the follow up \
 question to be a standalone question.
@@ -129,14 +105,40 @@ Unknown Role: {{ message.content -}}\n
 {%- endfor -%}\
 """
 
-NUM_DOCUMENTS = 3
-retriever = vectorstore.as_retriever(search_kwargs=dict(k=NUM_DOCUMENTS))
+NUM_DOCUMENTS = 5
+
+
+class ChatRequest(BaseModel):
+    question: str = Field(..., examples=["What's the weather like today?"])
+    chat_history: Optional[List[Dict[str, str]]] = None
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "question": "Tell me more about the solar system.",
+                "chat_history": [
+                    {"human": "hello", "ai": "Hello! How can I assist you today?"},
+                    {
+                        "human": "What's the largest planet in our solar system?",
+                        "ai": "The largest planet in our solar system is Jupiter.",
+                    },
+                ],
+            }
+        }
 
 
 class RAGChain:
-    def __init__(self, retriever: VectorStoreRetriever, chat_llm: BaseChat):
-        self.retriever = retriever
+    def __init__(self, vectorstore: FAISS, chat_llm: BaseChat):
+        self.retriever = CustomRetriever(vectorstore, NUM_DOCUMENTS)
         self.chat_llm = chat_llm
+
+        self.chat_logger = logging.getLogger(__name__)
+        self.chat_logger.setLevel(logging.INFO)
+        handler = logging.FileHandler("chat_history.log")
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        )
+        self.chat_logger.addHandler(handler)
 
     def format_chat_history(
         self, chat_history: Optional[List[Dict[str, str]]]
@@ -156,9 +158,7 @@ class RAGChain:
 
         return formatted_chat_history
 
-    async def aretrieve_documents(
-        self, request: ChatRequest
-    ) -> Tuple[str, List[Document]]:
+    async def aretrieve_documents(self, request: ChatRequest) -> List[Document]:
         chat_history = self.format_chat_history(request.chat_history)
         query_question = request.question
 
@@ -178,18 +178,28 @@ class RAGChain:
                     [{"role": "user", "content": rephrase_question_prompt}],
                 )
                 query_question = rephrased_question.strip()
+                self.chat_logger.info(f"Rephrased question: {query_question}")
             except Exception as e:
                 logger.error(
                     "Error occurred while invoking chat model to rephrase question."
                 )
         try:
             docs = await self.retriever.aget_relevant_documents(query_question)
+            logging.info(
+                f"Retrieved {len(docs)} documents.\n"
+                + "\n".join(
+                    [
+                        f"<doc id='{i}'>{doc.page_content}</doc>"
+                        for i, doc in enumerate(docs)
+                    ]
+                )
+            )
         except Exception as e:
             logger.error("Error occurred while retrieving documents:", e)
             docs = []
-        return query_question, docs
+        return docs
 
-    def retrieve_documents(self, request: ChatRequest) -> Tuple[str, List[Document]]:
+    def retrieve_documents(self, request: ChatRequest) -> List[Document]:
         chat_history = self.format_chat_history(request.chat_history)
         query_question = request.question
 
@@ -209,16 +219,26 @@ class RAGChain:
                     [{"role": "user", "content": rephrase_question_prompt}],
                 )
                 query_question = rephrased_question.strip()
+                self.chat_logger.info(f"Rephrased question: {query_question}")
             except Exception as e:
                 logger.error(
                     "Error occurred while invoking chat model to rephrase question",
                 )
         try:
             docs = self.retriever.get_relevant_documents(query_question)
+            logging.info(
+                f"Retrieved {len(docs)} documents.\n"
+                + "\n".join(
+                    [
+                        f"<doc id='{i}'>{doc.page_content}</doc>"
+                        for i, doc in enumerate(docs)
+                    ]
+                )
+            )
         except Exception as e:
             logger.error("Error occurred while retrieving documents:", e)
             docs = []
-        return query_question, docs
+        return docs
 
     def get_response_streamer_with_docs(
         self, request: ChatRequest, docs: List[Document]
@@ -269,9 +289,11 @@ class RAGChain:
     async def astream_log(
         self, request: ChatRequest
     ) -> AsyncGenerator[Tuple[str, str, Union[Dict, str, List]], None]:
+        self.chat_logger.info("=" * 100)
+        self.chat_logger.info(f"Received request: {request.model_dump_json()}")
         yield "replace", "", {}
 
-        query_question, docs = await self.aretrieve_documents(request)
+        docs = await self.aretrieve_documents(request)
         formatted_docs = [doc.json() for doc in docs]
         yield "add", "/logs", {}
         yield "add", "/logs/FindDocs", {}
@@ -283,13 +305,13 @@ class RAGChain:
         async for chunk in text_streamer:
             response += chunk
             yield "add", "/streamed_output/-", chunk
-        log_chat_history(query_question, docs, request, response)
+        self.chat_logger.info(f"Generated response: {response}")
         yield "replace", "/final_output", {"output": response}
 
     def stream_log(
         self, request: ChatRequest
     ) -> Generator[Tuple[str, str, Union[Dict, str, List]], None, None]:
-        query_question, docs = self.retrieve_documents(request)
+        docs = self.retrieve_documents(request)
         formatted_docs = [doc.json() for doc in docs]
         text_streamer = self.get_response_streamer_with_docs(request, docs)
 
@@ -303,17 +325,14 @@ class RAGChain:
         for chunk in text_streamer:
             response += chunk
             yield "add", "/streamed_output/-", chunk
-        log_chat_history(query_question, docs, request, response)
+        self.chat_logger.info(f"Generated response: {response}")
         yield "replace", "/final_output", {"output": response}
 
     async def ainvoke_log(self, request: ChatRequest) -> Dict[str, Union[str, List]]:
-        query_question, docs = await self.aretrieve_documents(request)
+        docs = await self.aretrieve_documents(request)
         text_streamer = self.aget_response_streamer_with_docs(request, docs)
         response = ""
         async for chunk in text_streamer:
             response += chunk
-        log_chat_history(query_question, docs, request, response)
+        self.chat_logger.info(f"Generated response: {response}")
         return {"response": response, "docs": [doc.json() for doc in docs]}
-
-
-chain = RAGChain(retriever, chat_llm)

@@ -2,17 +2,15 @@ from ingest import get_embeddings_model
 from pathlib import Path
 from langchain.vectorstores.faiss import FAISS
 
-from logger_config import get_logger
 
-logger = get_logger(__name__)
+def get_vectorstore(index_name: str):
+    embeddings = get_embeddings_model()
 
-embeddings = get_embeddings_model()
+    index_name = "clinical_index"
 
-vectorstore_name = "clinical_index"
-
-vectorstore = FAISS.load_local(
-    str(Path(__file__).parent / f"index/{vectorstore_name}"),
-    embeddings=embeddings,
-    allow_dangerous_deserialization=True,
-)
-logger.info("FAISS index loaded: ", vectorstore_name)
+    vectorstore = FAISS.load_local(
+        str(Path(__file__).parent / f"index/{index_name}"),
+        embeddings=embeddings,
+        allow_dangerous_deserialization=True,
+    )
+    return vectorstore

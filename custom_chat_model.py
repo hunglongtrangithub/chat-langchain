@@ -62,14 +62,15 @@ class CustomChatHuggingFace(BaseChat):
     ):
         self._huggingface_login()
         self.device = self._determine_device()
+        self.checkpoint = checkpoint
         try:
             self.tokenizer = (
-                AutoTokenizer.from_pretrained(checkpoint)
+                AutoTokenizer.from_pretrained(self.checkpoint)
                 if not tokenizer
                 else tokenizer
             )
             self.tokenizer.chat_template = CHAT_TEMPLATES.get(
-                checkpoint, self.tokenizer.default_chat_template
+                self.checkpoint, self.tokenizer.default_chat_template
             )
         except Exception as e:
             logger.error(f"Failed to load tokenizer: {e}")
@@ -77,8 +78,9 @@ class CustomChatHuggingFace(BaseChat):
         try:
             self.model = (
                 AutoModelForCausalLM.from_pretrained(
-                    checkpoint,
+                    self.checkpoint,
                     device_map="auto",
+                    torch_dtype=torch.bfloat16,
                 )
                 if not model
                 else model
@@ -86,8 +88,16 @@ class CustomChatHuggingFace(BaseChat):
         except Exception as e:
             logger.error(f"Failed to load model: {e}")
             raise
+
         self.max_length = 128  # can modify this to be the max length of the model
+
         self.generation_kwargs = generation_kwargs or self.default_generation_kwargs
+        if self.checkpoint == "meta-llama/Meta-Llama-3-8B-Instruct":
+            terminators = [
+                self.tokenizer.eos_token_id,
+                self.tokenizer.convert_tokens_to_ids("<|eot_id|>"),
+            ]
+            self.generation_kwargs["eos_token_id"] = terminators  # type: ignore
 
         logger.info(f"{checkpoint} initialized.")
         logger.info("Initialized on device: {}".format(self.device))
@@ -541,10 +551,9 @@ class CustomChatGroq(BaseChat):
 
 
 # CHECKPOINT = "facebook/opt-125m"
-CHECKPOINT = "meta-llama/Llama-2-7b-chat-hf"
+# CHECKPOINT = "meta-llama/Llama-2-7b-chat-hf"
 # CHECKPOINT = "georgesung/llama2_7b_chat_uncensored"
 # CHECKPOINT = "Tap-M/Luna-AI-Llama2-Uncensored"
-chat_llm = CustomChatHuggingFace(CHECKPOINT)
 
 # from llm_llama.model_generator.llm_pipeline import load_fine_tuned_model
 # from pathlib import Path
@@ -557,3 +566,7 @@ chat_llm = CustomChatHuggingFace(CHECKPOINT)
 
 # chat_llm = CustomChatOpenAI()
 # chat_llm = CustomChatHuggingFace()
+
+# model_name = "mixtral-8x7b-32768"
+# model_name = "llama3-8b-8192"
+# chat_llm = CustomChatGroq(model_name=model_name)

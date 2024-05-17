@@ -167,9 +167,6 @@ class DummyOpenAIWhisperSTT:
         return self.default_transcription_text
 
 
-# transcribe = OpenAIWhisperSTT()
-transcribe = WhisperSTT()
-
 if __name__ == "__main__":
     path_to_audio = "./tests/audio/moe-moe-kyun.mp3"
     whisper_stt = DummyOpenAIWhisperSTT()
