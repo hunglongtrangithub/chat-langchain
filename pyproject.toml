@@ -38,6 +38,7 @@ groq = "^0.4.2"
 pydantic-settings = "^2.2.1"
 unstructured = "^0.13.2"
 sentence-transformers = "^2.7.0"
+rank-bm25 = "^0.2.2"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.9.1"
