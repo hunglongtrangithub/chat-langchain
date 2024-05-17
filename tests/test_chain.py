@@ -5,9 +5,19 @@ import os
 os.chdir(Path(__file__).parent.parent)
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import asyncio
-from rag_chain import ChatRequest, chain
+from rag_chain import RAGChain
+from custom_chat_model import CustomChatHuggingFace
+from vectorstore import get_vectorstore
 import time
 from contextlib import contextmanager
+
+
+CHECKPOINT = "meta-llama/Meta-Llama-3-8B-Instruct"
+chat_model = CustomChatHuggingFace(CHECKPOINT)
+
+vectorstore = get_vectorstore("clinical_index")
+
+chain = RAGChain(vectorstore, chat_model)
 
 
 @contextmanager
@@ -44,6 +54,7 @@ current_chat = {
     ],
 }
 
+question = "What is Fake Patient1 diagnosed with?"
 request = ChatRequest(**current_chat)
 
 
@@ -59,19 +70,25 @@ def test_chain_async():
 
     asyncio.run(print_stream(request))
 
+
 def test_retrieve_docs():
     docs = chain.retrieve_documents(request)
     docs = [doc.json() for doc in docs]
-    import json 
+    import json
+
     for doc in docs:
         print(json.dumps(doc, indent=4))
 
+
 def test_retriever():
-    docs = chain.retriever.get_relevant_documents(request.question)
+    docs = chain.retriever.get_relevant_documents(question)
     docs = [doc.json() for doc in docs]
-    import json 
+    import json
+
     for doc in docs:
         print(json.dumps(doc, indent=4))
+
+
 if __name__ == "__main__":
     # with timeit():
     #     test_chain()
