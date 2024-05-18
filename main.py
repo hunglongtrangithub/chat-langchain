@@ -15,7 +15,7 @@ import json
 from starlette.background import BackgroundTask
 
 from logger_config import get_logger
-from vectorstore import get_vectorstore
+from retriever import CustomRetriever
 from custom_chat_model import CustomChatHuggingFace
 from rag_chain import ChatRequest, RAGChain
 from tts import CoquiTTS
@@ -25,15 +25,11 @@ from config import settings
 logger = get_logger(__name__)
 
 
-CHECKPOINT = "meta-llama/Meta-Llama-3-8B-Instruct"
-chat_model = CustomChatHuggingFace(CHECKPOINT)
-
-vectorstore = get_vectorstore("clinical_index")
-
-chain = RAGChain(vectorstore, chat_model)
-
+# chat_model = CustomChatHuggingFace("meta-llama/Meta-Llama-3-8B-Instruct")
+chat_model = CustomChatHuggingFace("facebook/opt-125m")
+retriever = CustomRetriever(num_docs=5)
+chain = RAGChain(retriever, chat_model)
 # tts = CoquiTTS()
-
 # transcribe = WhisperSTT()
 
 app = FastAPI()

@@ -1,12 +1,9 @@
-from langchain.schema.document import Document
-from langchain.vectorstores.faiss import FAISS
-
 from jinja2 import Template
 from typing import List, Optional, Dict, Tuple, Union, Generator, AsyncGenerator
 from pydantic import BaseModel, Field
 
 from logger_config import get_logger
-from retriever import CustomRetriever
+from retriever import CustomRetriever, Document
 from custom_chat_model import BaseChat
 import logging
 
@@ -128,10 +125,9 @@ class ChatRequest(BaseModel):
 
 
 class RAGChain:
-    def __init__(self, vectorstore: FAISS, chat_llm: BaseChat):
-        self.retriever = CustomRetriever(vectorstore, NUM_DOCUMENTS)
+    def __init__(self, retriever: CustomRetriever, chat_llm: BaseChat):
         self.chat_llm = chat_llm
-
+        self.retriever = retriever
         self.chat_logger = logging.getLogger(__name__)
         self.chat_logger.setLevel(logging.INFO)
         handler = logging.FileHandler("chat_history.log")
@@ -226,7 +222,7 @@ class RAGChain:
                 )
         try:
             docs = self.retriever.get_relevant_documents(query_question)
-            logging.info(
+            self.chat_logger.info(
                 f"Retrieved {len(docs)} documents.\n"
                 + "\n".join(
                     [
@@ -294,7 +290,7 @@ class RAGChain:
         yield "replace", "", {}
 
         docs = await self.aretrieve_documents(request)
-        formatted_docs = [doc.json() for doc in docs]
+        formatted_docs = [doc.model_dump_json() for doc in docs]
         yield "add", "/logs", {}
         yield "add", "/logs/FindDocs", {}
         yield "add", "/logs/FindDocs/final_output", {"output": formatted_docs}
@@ -312,7 +308,8 @@ class RAGChain:
         self, request: ChatRequest
     ) -> Generator[Tuple[str, str, Union[Dict, str, List]], None, None]:
         docs = self.retrieve_documents(request)
-        formatted_docs = [doc.json() for doc in docs]
+        formatted_docs = [doc.model_dump_json() for doc in docs]
+        print(formatted_docs)
         text_streamer = self.get_response_streamer_with_docs(request, docs)
 
         yield "replace", "", {}

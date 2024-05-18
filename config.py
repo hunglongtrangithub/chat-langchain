@@ -1,4 +1,3 @@
-import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import SecretStr
 from dotenv import load_dotenv
@@ -18,12 +17,12 @@ class Settings(BaseSettings):
     replicate_api_token: SecretStr
     groq_api_key: SecretStr
     hf_token: SecretStr
+    meili_master_key: SecretStr
+    meili_http_addr: str = "localhost:7700"
     port: int = 8080
 
 
 settings = Settings()  # type: ignore
-# print(settings.model_dump_json(indent=2))
 
 if __name__ == "__main__":
     print(settings.model_dump())
-    print(settings.openai_api_key.get_secret_value() == os.getenv("OPENAI_API_KEY"))
