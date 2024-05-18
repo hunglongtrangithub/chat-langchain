@@ -1,203 +1,163 @@
-from __future__ import annotations
+import os
+import json
+import csv
+import requests
+from uuid import uuid4
+from bson import ObjectId
+import meilisearch
+from config import settings
 
-from typing import Callable, Iterable, Literal, Optional, Sequence, Union, cast
-
-from langchain.document_loaders.base import BaseLoader
-from langchain.indexes._api import (IndexingResult, _batch,
-                                    _deduplicate_in_order,
-                                    _get_source_id_assigner, _HashedDocument)
-from langchain.indexes.base import RecordManager
-from langchain.schema.document import Document
-from langchain.schema.vectorstore import VectorStore
+EMBEDDER_NAME = "default"
+INDEX_NAME = "clinical_docs"
+EMBEDDINGS_MODEL_NAME = "BAAI/bge-base-en-v1.5"
+MEILI_API_URL = "http://" + (settings.meili_http_addr or "localhost:7700")
 
 
-def index(
-    docs_source: Union[BaseLoader, Iterable[Document]],
-    record_manager: RecordManager,
-    vector_store: VectorStore,
-    *,
-    batch_size: int = 100,
-    cleanup: Literal["incremental", "full", None] = None,
-    source_id_key: Union[str, Callable[[Document], str], None] = None,
-    cleanup_batch_size: int = 1_000,
-    force_update: bool = False,
-) -> IndexingResult:
-    """Index data from the loader into the vector store.
+def create_api_keys():
+    master_client = meilisearch.Client(
+        url=MEILI_API_URL,
+        api_key=settings.meili_master_key.get_secret_value(),
+    )
 
-    Indexing functionality uses a manager to keep track of which documents
-    are in the vector store.
+    search_uid = str(uuid4())
+    admin_uid = str(uuid4())
+    master_client.create_key(
+        options={
+            "uid": search_uid,
+            "description": "API key for the clinical docs search app",
+            "actions": ["search"],
+            "indexes": [INDEX_NAME],
+            "expiresAt": None,
+        }
+    )
+    master_client.create_key(
+        options={
+            "uid": admin_uid,
+            "description": "API key for the clinical docs admin app",
+            "actions": ["*"],
+            "indexes": ["*"],
+            "expiresAt": None,
+        }
+    )
+    search_api_key = master_client.get_key(search_uid)
+    admin_api_key = master_client.get_key(admin_uid)
+    return search_api_key.key, admin_api_key.key
 
-    This allows us to keep track of which documents were updated, and which
-    documents were deleted, which documents should be skipped.
 
-    For the time being, documents are indexed using their hashes, and users
-     are not able to specify the uid of the document.
+SEARCH_API_KEY, ADMIN_API_KEY = create_api_keys()
 
-    IMPORTANT:
-       if auto_cleanup is set to True, the loader should be returning
-       the entire dataset, and not just a subset of the dataset.
-       Otherwise, the auto_cleanup will remove documents that it is not
-       supposed to.
+docs_folder = "docs"
+csv_file_path = f"{docs_folder}/processed_docs.csv"
 
-    Args:
-        docs_source: Data loader or iterable of documents to index.
-        record_manager: Timestamped set to keep track of which documents were
-                         updated.
-        vector_store: Vector store to index the documents into.
-        batch_size: Batch size to use when indexing.
-        cleanup: How to handle clean up of documents.
-            - Incremental: Cleans up all documents that haven't been updated AND
-                           that are associated with source ids that were seen
-                           during indexing.
-                           Clean up is done continuously during indexing helping
-                           to minimize the probability of users seeing duplicated
-                           content.
-            - Full: Delete all documents that haven to been returned by the loader.
-                    Clean up runs after all documents have been indexed.
-                    This means that users may see duplicated content during indexing.
-            - None: Do not delete any documents.
-        source_id_key: Optional key that helps identify the original source
-            of the document.
-        cleanup_batch_size: Batch size to use when cleaning up documents.
-        force_update: Force update documents even if they are present in the
-            record manager. Useful if you are re-indexing with updated embeddings.
 
-    Returns:
-        Indexing result which contains information about how many documents
-        were added, updated, deleted, or skipped.
-    """
-    if cleanup not in {"incremental", "full", None}:
-        raise ValueError(
-            f"cleanup should be one of 'incremental', 'full' or None. "
-            f"Got {cleanup}."
-        )
+def process_documents():
+    with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
+        fieldnames = ["id", "title", "source", "page_content"]
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        writer.writeheader()  # Write the header only once
 
-    if cleanup == "incremental" and source_id_key is None:
-        raise ValueError("Source id key is required when cleanup mode is incremental.")
+        doc_count = 0
+        for patient_folder in os.listdir(docs_folder):
+            patient_path = os.path.join(docs_folder, patient_folder)
+            if os.path.isdir(patient_path):
+                for txt_file in os.listdir(patient_path):
+                    if txt_file.endswith(".txt"):
+                        file_path = os.path.join(patient_path, txt_file)
+                        with open(file_path, "r", encoding="utf-8") as f:
+                            page_content = f.read()
 
-    # Check that the Vectorstore has required methods implemented
-    methods = ["delete", "add_documents"]
+                        document = {
+                            "id": str(ObjectId()),  # Generate MongoDB-style ObjectID
+                            "title": txt_file,
+                            "source": f"{docs_folder}/{patient_folder}/{txt_file}",
+                            "page_content": page_content,
+                        }
+                        writer.writerow(document)  # Append document to CSV file
+                        doc_count += 1
+                        print(document["source"])
+        print(f"Processed {doc_count} documents.")
 
-    for method in methods:
-        if not hasattr(vector_store, method):
-            raise ValueError(
-                f"Vectorstore {vector_store} does not have required method {method}"
-            )
 
-    if type(vector_store).delete == VectorStore.delete:
-        # Checking if the vectorstore has overridden the default delete method
-        # implementation which just raises a NotImplementedError
-        raise ValueError("Vectorstore has not implemented the delete method")
+def index_documents_to_meili():
+    admin_client = meilisearch.Client(url=MEILI_API_URL, api_key=ADMIN_API_KEY)
+    index = admin_client.get_index(INDEX_NAME)
 
-    if isinstance(docs_source, BaseLoader):
-        try:
-            doc_iterator = docs_source.lazy_load()
-        except NotImplementedError:
-            doc_iterator = iter(docs_source.load())
+    # enable vector search
+    data = {"vectorStore": True}
+    response = requests.patch(
+        url=f"{MEILI_API_URL}/experimental-features",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {ADMIN_API_KEY}",
+        },
+        data=json.dumps(data),
+    )
+    if response.status_code == 200:
+        print("Vector search enabled successfully!")
     else:
-        doc_iterator = iter(docs_source)
+        print("Error enabling vector search:", response.status_code)
+        return
 
-    source_id_assigner = _get_source_id_assigner(source_id_key)
-
-    # Mark when the update started.
-    index_start_dt = record_manager.get_time()
-    num_added = 0
-    num_skipped = 0
-    num_updated = 0
-    num_deleted = 0
-
-    for doc_batch in _batch(batch_size, doc_iterator):
-        hashed_docs = list(
-            _deduplicate_in_order(
-                [_HashedDocument.from_document(doc) for doc in doc_batch]
-            )
-        )
-
-        source_ids: Sequence[Optional[str]] = [
-            source_id_assigner(doc) for doc in hashed_docs
-        ]
-
-        if cleanup == "incremental":
-            # If the cleanup mode is incremental, source ids are required.
-            for source_id, hashed_doc in zip(source_ids, hashed_docs):
-                if source_id is None:
-                    raise ValueError(
-                        "Source ids are required when cleanup mode is incremental. "
-                        f"Document that starts with "
-                        f"content: {hashed_doc.page_content[:100]} was not assigned "
-                        f"as source id."
-                    )
-            # source ids cannot be None after for loop above.
-            source_ids = cast(Sequence[str], source_ids)  # type: ignore[assignment]
-
-        exists_batch = record_manager.exists([doc.uid for doc in hashed_docs])
-
-        # Filter out documents that already exist in the record store.
-        uids = []
-        docs_to_index = []
-        uids_to_refresh = []
-        for hashed_doc, doc_exists in zip(hashed_docs, exists_batch):
-            if doc_exists and not force_update:
-                uids_to_refresh.append(hashed_doc.uid)
-                continue
-            uids.append(hashed_doc.uid)
-            docs_to_index.append(hashed_doc.to_document())
-
-        # Update refresh timestamp
-        if uids_to_refresh:
-            record_manager.update(uids_to_refresh, time_at_least=index_start_dt)
-            num_skipped += len(uids_to_refresh)
-
-        # Be pessimistic and assume that all vector store write will fail.
-        # First write to vector store
-        if docs_to_index:
-            vector_store.add_documents(docs_to_index, ids=uids)
-            num_added += len(docs_to_index)
-
-        # And only then update the record store.
-        # Update ALL records, even if they already exist since we want to refresh
-        # their timestamp.
-        record_manager.update(
-            [doc.uid for doc in hashed_docs],
-            group_ids=source_ids,
-            time_at_least=index_start_dt,
-        )
-
-        # If source IDs are provided, we can do the deletion incrementally!
-        if cleanup == "incremental":
-            # Get the uids of the documents that were not returned by the loader.
-
-            # mypy isn't good enough to determine that source ids cannot be None
-            # here due to a check that's happening above, so we check again.
-            for source_id in source_ids:
-                if source_id is None:
-                    raise AssertionError("Source ids cannot be None here.")
-
-            _source_ids = cast(Sequence[str], source_ids)
-
-            uids_to_delete = record_manager.list_keys(
-                group_ids=_source_ids, before=index_start_dt
-            )
-            if uids_to_delete:
-                # Then delete from vector store.
-                vector_store.delete(uids_to_delete)
-                # First delete from record store.
-                record_manager.delete_keys(uids_to_delete)
-                num_deleted += len(uids_to_delete)
-
-    if cleanup == "full":
-        while uids_to_delete := record_manager.list_keys(
-            before=index_start_dt, limit=cleanup_batch_size
-        ):
-            # First delete from record store.
-            vector_store.delete(uids_to_delete)
-            # Then delete from record manager.
-            record_manager.delete_keys(uids_to_delete)
-            num_deleted += len(uids_to_delete)
-
-    return {
-        "num_added": num_added,
-        "num_updated": num_updated,
-        "num_skipped": num_skipped,
-        "num_deleted": num_deleted,
+    # add the embedder
+    settings = {
+        "embedders": {
+            EMBEDDER_NAME: {
+                "source": "huggingFace",
+                "model": EMBEDDINGS_MODEL_NAME,
+                "documentTemplate": "A clinical document titled {{doc.title}} whose content starts with {{doc.page_content|truncatewords: 20}}",
+            }
+        },
+        "filterableAttributes": ["title", "source"],
+        "sortableAttributes": ["title", "source"],
+        "searchableAttributes": ["title", "source", "page_content"],
     }
+    index.update_settings(settings)
+
+    index.delete_all_documents()  # Clear the index before adding new documents
+    with open(csv_file_path, mode="r", encoding="utf-8") as csv_file:
+        reader = csv.DictReader(csv_file)
+        for row in reader:
+            index.add_documents([row])  # Index each document individually
+
+
+def index_docs():
+    process_documents()
+    print(f"Documents processed and saved to {csv_file_path}.")
+    index_documents_to_meili()
+    print("Documents indexed to Meilisearch.")
+
+
+def test_search_meili():
+    index = meilisearch.Client(
+        url=MEILI_API_URL,
+        api_key=SEARCH_API_KEY,
+    ).index(INDEX_NAME)
+
+    def search_documents(query):
+        opt_params = {
+            "hybrid": {
+                "semanticRatio": 0.9,
+                "embedder": EMBEDDER_NAME,
+            },
+            "limit": 5,
+        }
+        return index.search(query, opt_params)["hits"]
+
+    # Example query
+    query = "Fake Patient1"
+    documents = search_documents(query)
+
+    # Print the results
+    for doc in documents:
+        print(f"ID: {doc['id']}")
+        print(f"Title: {doc['title']}")
+        print(f"Source: {doc['source']}")
+        print("-" * 40)
+
+
+if __name__ == "__main__":
+    index_docs()
+    # test_search_meili()
+    # get_api_keys()
+    # process_documents()
+    pass
