@@ -148,7 +148,7 @@ export function ChatWindow(props: {
             chat_history: chatHistory,
           }),
         })
-          .then(response => {
+          .then((response) => {
             console.log(response);
             if (!response.ok) {
               throw new Error("Failed to fetch response from the server.");
@@ -166,21 +166,19 @@ export function ChatWindow(props: {
                 content: parsedResult.trim(),
                 text: data.response.trim(),
                 runId: runId,
-                sources: data.docs.map(
-                  (doc: string) => ({
-                    url: JSON.parse(doc).metadata.source,
-                    title: JSON.parse(doc).metadata.title,
-                  }),
-                ),
+                sources: data.docs.map((doc: string) => ({
+                  url: JSON.parse(doc).source,
+                  title: JSON.parse(doc).title,
+                })),
                 role: "assistant",
               });
               return newMessages;
             });
           });
         setChatHistory((prevChatHistory) => [
-              ...prevChatHistory,
-              { human: messageValue, ai: accumulatedMessage },
-            ]);
+          ...prevChatHistory,
+          { human: messageValue, ai: accumulatedMessage },
+        ]);
         setIsLoading(false);
         return;
       }
@@ -225,8 +223,8 @@ export function ChatWindow(props: {
               sources = streamedResponse.logs[
                 sourceStepName
               ].final_output.output.map((doc: string) => ({
-                url: JSON.parse(doc).metadata.source,
-                title: JSON.parse(doc).metadata.title,
+                url: JSON.parse(doc).source,
+                title: JSON.parse(doc).title,
               }));
             }
             if (streamedResponse.id !== undefined) {
@@ -341,11 +339,13 @@ export function ChatWindow(props: {
             rounded={"full"}
             aria-label="Send"
             icon={
-              isRecording ?
-                <MdStop /> :
-              isTranscribing ?
-                <Spinner /> :
-              <MdMic />
+              isRecording ? (
+                <MdStop />
+              ) : isTranscribing ? (
+                <Spinner />
+              ) : (
+                <MdMic />
+              )
             }
             type="submit"
             onClick={(e) => {
