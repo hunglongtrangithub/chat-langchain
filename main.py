@@ -25,9 +25,9 @@ from config import settings
 logger = get_logger(__name__)
 
 
-# chat_model = CustomChatHuggingFace("meta-llama/Meta-Llama-3-8B-Instruct")
-chat_model = CustomChatHuggingFace("facebook/opt-125m")
-retriever = CustomRetriever(num_docs=5)
+chat_model = CustomChatHuggingFace("meta-llama/Meta-Llama-3-8B-Instruct")
+# chat_model = CustomChatHuggingFace("facebook/opt-125m")
+retriever = CustomRetriever(num_docs=5, semantic_ratio=0.1)
 chain = RAGChain(retriever, chat_model)
 # tts = CoquiTTS()
 # transcribe = WhisperSTT()
