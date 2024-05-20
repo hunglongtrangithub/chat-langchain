@@ -9,7 +9,8 @@ from config import settings
 
 EMBEDDER_NAME = "default"
 INDEX_NAME = "clinical_docs"
-EMBEDDINGS_MODEL_NAME = "BAAI/bge-base-en-v1.5"
+# EMBEDDINGS_MODEL_NAME = "BAAI/bge-base-en-v1.5"
+EMBEDDINGS_MODEL_NAME = "Salesforce/SFR-Embedding-Mistral"
 MEILI_API_URL = "http://" + (settings.meili_http_addr or "localhost:7700")
 
 
@@ -134,7 +135,7 @@ def index_documents_to_meili():
             EMBEDDER_NAME: {
                 "source": "huggingFace",
                 "model": EMBEDDINGS_MODEL_NAME,
-                "documentTemplate": "A clinical document titled {{doc.title}} whose content starts with {{doc.page_content|truncatewords: 20}}",
+                "documentTemplate": "A clinical document titled {{doc.title}} whose content is {{doc.page_content}}",
             }
         },
         "filterableAttributes": ["title", "source"],
