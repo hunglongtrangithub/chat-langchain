@@ -15,10 +15,11 @@ class Document(BaseModel):
 
 
 class CustomRetriever:
-    def __init__(self, num_docs: int = 5):
+    def __init__(self, num_docs: int = 5, semantic_ratio: float = 0.1):
         self.index_name = INDEX_NAME
         self.embedder_name = EMBEDDER_NAME
         self.num_docs = num_docs
+        self.semantic_ratio = semantic_ratio
         self.client = meilisearch.Client(
             url=MEILI_API_URL,
             api_key=SEARCH_API_KEY,
@@ -28,7 +29,7 @@ class CustomRetriever:
     def get_relevant_documents(self, query: str) -> List[Document]:
         opt_params = {
             "hybrid": {
-                "semanticRatio": 0.9,
+                "semanticRatio": self.semantic_ratio,
                 "embedder": self.embedder_name,
             },
             "limit": self.num_docs,
