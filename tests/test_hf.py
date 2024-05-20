@@ -65,6 +65,26 @@ def test_login():
     login(token=token)
 
 
+def test_chat_pipeline():
+    checkpoint = "meta-llama/Meta-Llama-3-8B-Instruct"
+    checkpoint = "meta-llama/Llama-2-7b-chat-hf"
+    generator = pipeline("text-generation", model=checkpoint, tokenizer=checkpoint)
+    messages = [
+        {
+            "role": "system",
+            "content": "You are a friendly chatbot who always responds in the style of a pirate",
+        },
+        {
+            "role": "user",
+            "content": "How many helicopters can a human eat in one sitting?",
+        },
+    ]
+    print(generator(messages, max_new_tokens=128)[0]["generated_text"])
+
+
 if __name__ == "__main__":
     # test_chat_template()
-    test_login()
+    # test_login()
+    # tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B-Instruct")
+    # print(tokenizer.default_chat_template)
+    test_chat_pipeline()

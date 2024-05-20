@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
+from retriever import CustomRetriever
 
 
 def get_random_docs_from_patient_name(patient_name, frequency):
@@ -33,20 +34,13 @@ def get_docs_from_patient_names(patient_names):
     return docs
 
 
-patient_names = [("fake_patient1", 10), ("fake_patient2", 9), ("fake_patient3", 8)]
-retriever = BM25Retriever.from_documents(get_docs_from_patient_names(patient_names))
-if __name__ == "__main__":
-    from vectorstore import get_vectorstore
-    from langchain_community.vectorstores.faiss import FAISS
-    from ingest import get_embeddings_model
+# patient_names = [("fake_patient1", 10), ("fake_patient2", 9), ("fake_patient3", 8)]
+# retriever = BM25Retriever.from_documents(get_docs_from_patient_names(patient_names))
 
-    num_docs = sum([x[1] for x in patient_names])
-    docs = get_docs_from_patient_names(patient_names)
-    print("num docs", num_docs)
-    query = "What is Fake Patient1 diagnosed with?"
-    # vectorstore = FAISS.from_documents(docs, get_embeddings_model())
-    # docs = vectorstore.search(query, search_type="similarity")[: num_docs // 2]
-    retriever = BM25Retriever.from_documents(docs)
-    docs = retriever.invoke(query)
-    for doc in docs:
-        print(doc.metadata)
+retriever = CustomRetriever(num_docs=10, semantic_ratio=0.1)
+query = "Fake Patient1"
+docs = retriever.get_relevant_documents(query)
+for doc in docs:
+    print(doc.title)
+    print(doc.source)
+    print("\n")

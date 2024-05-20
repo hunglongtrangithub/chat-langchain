@@ -25,18 +25,18 @@ def test_llama2_chat_template():
     chat = tokenizer.apply_chat_template(
         messages,
         tokenize=False,
-        add_generation_prompt=True,
+        add_generation_prompt=False,
         chat_template=CHAT_TEMPLATES[model_id],
     )
-    chat_with_default_template = tokenizer.apply_chat_template(
-        messages,
-        tokenize=False,
-        add_generation_prompt=True,
-    )
     print(chat)
-    print(chat_with_default_template)
-    print(chat.strip() == chat_with_default_template.strip())
-    print(len(chat), len(chat_with_default_template))
+    # chat_with_default_template = tokenizer.apply_chat_template(
+    #     messages,
+    #     tokenize=False,
+    #     add_generation_prompt=True,
+    # )
+    # print(chat_with_default_template)
+    # print(chat.strip() == chat_with_default_template.strip())
+    # print(len(chat), len(chat_with_default_template))
 
 
 def test_uncensored_llama2_chat_template():
@@ -90,7 +90,7 @@ Unknown Role: {{ message.content -}}\n
 
 
 if __name__ == "__main__":
-    # test_llama2_chat_template()
+    test_llama2_chat_template()
     # test_chat_template_string()
     # test_uncensored_llama2_chat_template()
-    test_llama3_instruct_template()
+    # test_llama3_instruct_template()
