@@ -89,6 +89,20 @@ Chat History:
 Follow Up Input: {question}
 Standalone Question:"""
 
+# Template for asking the model to extract the name of the patient
+REPHRASE_TEMPLATE = """
+Given the following chat history:
+
+{chat_history}
+
+And the follow-up question:
+
+{question}
+
+Extract the name of the patient that is the most relevant to the follow-up question. Do not \
+include any other information in your response.
+"""
+
 # Jinja2 template for formatting chat history
 CHAT_TEMPLATE_STRING = """\
 {%- for message in messages %}
@@ -101,8 +115,6 @@ Unknown Role: {{ message.content -}}\n
 {%- endif -%}
 {%- endfor -%}\
 """
-
-NUM_DOCUMENTS = 5
 
 
 class ChatRequest(BaseModel):
@@ -158,30 +170,29 @@ class RAGChain:
         chat_history = self.format_chat_history(request.chat_history)
         query_question = request.question
 
-        if chat_history:
-            try:
-                template = Template(CHAT_TEMPLATE_STRING)
-                serialized_chat_history = template.render(messages=chat_history).strip()
-            except Exception as e:
-                logger.error("Error occurred while applying template to chat history.")
-                serialized_chat_history = ""
+        try:
+            template = Template(CHAT_TEMPLATE_STRING)
+            serialized_chat_history = template.render(messages=chat_history).strip()
+        except Exception as e:
+            logger.error("Error occurred while applying template to chat history.")
+            serialized_chat_history = ""
 
-            rephrase_question_prompt = REPHRASE_TEMPLATE.format(
-                chat_history=serialized_chat_history, question=query_question
+        rephrase_question_prompt = REPHRASE_TEMPLATE.format(
+            chat_history=serialized_chat_history, question=query_question
+        )
+        try:
+            rephrased_question = await self.chat_llm.ainvoke(
+                [{"role": "user", "content": rephrase_question_prompt}],
             )
-            try:
-                rephrased_question = await self.chat_llm.ainvoke(
-                    [{"role": "user", "content": rephrase_question_prompt}],
-                )
-                query_question = rephrased_question.strip()
-                self.chat_logger.info(f"Rephrased question: {query_question}")
-            except Exception as e:
-                logger.error(
-                    "Error occurred while invoking chat model to rephrase question."
-                )
+            query_question = rephrased_question.strip()
+            self.chat_logger.info(f"Rephrased question: {query_question}")
+        except Exception as e:
+            logger.error(
+                "Error occurred while invoking chat model to rephrase question."
+            )
         try:
             docs = await self.retriever.aget_relevant_documents(query_question)
-            logging.info(
+            self.chat_logger.info(
                 f"Retrieved {len(docs)} documents.\n"
                 + "\n".join(
                     [
@@ -199,27 +210,26 @@ class RAGChain:
         chat_history = self.format_chat_history(request.chat_history)
         query_question = request.question
 
-        if chat_history:
-            try:
-                template = Template(CHAT_TEMPLATE_STRING)
-                serialized_chat_history = template.render(messages=chat_history).strip()
-            except Exception as e:
-                logger.error("Error occurred while applying template to chat history")
-                serialized_chat_history = ""
+        try:
+            template = Template(CHAT_TEMPLATE_STRING)
+            serialized_chat_history = template.render(messages=chat_history).strip()
+        except Exception as e:
+            logger.error("Error occurred while applying template to chat history")
+            serialized_chat_history = ""
 
-            rephrase_question_prompt = REPHRASE_TEMPLATE.format(
-                chat_history=serialized_chat_history, question=query_question
+        rephrase_question_prompt = REPHRASE_TEMPLATE.format(
+            chat_history=serialized_chat_history, question=query_question
+        )
+        try:
+            rephrased_question = self.chat_llm.invoke(
+                [{"role": "user", "content": rephrase_question_prompt}],
             )
-            try:
-                rephrased_question = self.chat_llm.invoke(
-                    [{"role": "user", "content": rephrase_question_prompt}],
-                )
-                query_question = rephrased_question.strip()
-                self.chat_logger.info(f"Rephrased question: {query_question}")
-            except Exception as e:
-                logger.error(
-                    "Error occurred while invoking chat model to rephrase question",
-                )
+            query_question = rephrased_question.strip()
+            self.chat_logger.info(f"Rephrased question: {query_question}")
+        except Exception as e:
+            logger.error(
+                "Error occurred while invoking chat model to rephrase question",
+            )
         try:
             docs = self.retriever.get_relevant_documents(query_question)
             self.chat_logger.info(
@@ -250,6 +260,7 @@ class RAGChain:
             *formatted_chat_history,
             {"role": "user", "content": request.question},
         ]
+        self.chat_logger.info(f"Current conversation: {current_conversation[1:]}")
         try:
             text_streamer = self.chat_llm.stream(current_conversation)
             return text_streamer  # type: ignore
@@ -271,6 +282,7 @@ class RAGChain:
             *formatted_chat_history,
             {"role": "user", "content": request.question},
         ]
+        self.chat_logger.info(f"Current conversation: {current_conversation[1:]}")
         try:
             text_streamer = self.chat_llm.astream(current_conversation)
             return text_streamer
