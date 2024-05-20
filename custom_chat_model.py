@@ -5,6 +5,7 @@ from transformers import (
 )
 from typing import Dict, AsyncGenerator, Generator, Optional, Union, List
 from jinja2.exceptions import TemplateError
+from abc import ABC, abstractmethod
 
 from huggingface_hub import login
 from threading import Thread
@@ -20,25 +21,29 @@ from chat_templates import CHAT_TEMPLATES
 logger = get_logger(__name__)
 
 
-class BaseChat:
+class BaseChat(ABC):
     def __init__(self):
         logger.info("BaseChat initialized.")
 
+    @abstractmethod
     def invoke(self, current_conversation: List[Dict[str, str]]) -> str:
-        return "This is a dummy response."
+        pass
 
+    @abstractmethod
     def stream(
         self, current_conversation: List[Dict[str, str]]
     ) -> Generator[str, None, None]:
-        yield "This is a dummy response."
+        pass
 
+    @abstractmethod
     async def ainvoke(self, current_conversation: List[Dict[str, str]]) -> str:
-        return "This is a dummy response."
+        pass
 
+    @abstractmethod
     async def astream(
         self, current_conversation: List[Dict[str, str]]
     ) -> AsyncGenerator[str, None]:
-        yield "This is a dummy response."
+        pass
 
 
 class CustomChatHuggingFace(BaseChat):
@@ -48,7 +53,7 @@ class CustomChatHuggingFace(BaseChat):
         "max_new_tokens": 512,
         "num_return_sequences": 1,
         "do_sample": True,
-        "temperature": 0.7,
+        "temperature": 0.1,
         "top_k": 50,
         "top_p": 0.95,
     }
@@ -92,7 +97,14 @@ class CustomChatHuggingFace(BaseChat):
         self.max_length = 128  # can modify this to be the max length of the model
 
         self.generation_kwargs = generation_kwargs or self.default_generation_kwargs
-        if self.checkpoint == "meta-llama/Meta-Llama-3-8B-Instruct":
+        if self.generation_kwargs.get("temperature") == 0:
+            self.generation_kwargs["do_sample"] = False
+
+        # add end-of-sequence tokens for Llama 3 Instruct models
+        if (
+            self.checkpoint == "meta-llama/Meta-Llama-3-8B-Instruct"
+            or self.checkpoint == "meta-llama/Meta-Llama-3-70B-Instruct"
+        ):
             terminators = [
                 self.tokenizer.eos_token_id,
                 self.tokenizer.convert_tokens_to_ids("<|eot_id|>"),
