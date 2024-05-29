@@ -94,7 +94,7 @@ class CustomChatHuggingFace(BaseChat):
             logger.error(f"Failed to load model: {e}")
             raise
 
-        self.max_length = 128  # can modify this to be the max length of the model
+        self.max_length = 8192  # can modify this to be the context length of the model
 
         self.generation_kwargs = generation_kwargs or self.default_generation_kwargs
         if self.generation_kwargs.get("temperature") == 0:
