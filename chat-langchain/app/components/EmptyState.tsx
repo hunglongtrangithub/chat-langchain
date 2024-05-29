@@ -15,7 +15,8 @@ export function EmptyState(props: { onChoice: (question: string) => any }) {
   return (
     <div className="rounded flex flex-col items-center max-w-full md:p-8">
       <Heading fontSize="3xl" fontWeight={"medium"} mb={1} color={"white"}>
-        Chat LangChain 🦜🔗
+        {/* Chat LangChain 🦜🔗 */}
+        Medical Chatbot
       </Heading>
       <Heading
         fontSize="xl"
@@ -25,10 +26,10 @@ export function EmptyState(props: { onChoice: (question: string) => any }) {
         marginTop={"10px"}
         textAlign={"center"}
       >
-        Ask me anything about LangChain&apos;s{" "}
+        {/* Ask me anything about LangChain&apos;s{" "}
         <Link href="https://python.langchain.com/" color={"blue.200"}>
           Python documentation!
-        </Link>
+        </Link> */}
       </Heading>
       <Flex marginTop={"25px"} grow={1} maxWidth={"800px"} width={"100%"}>
         <Card
@@ -47,7 +48,7 @@ export function EmptyState(props: { onChoice: (question: string) => any }) {
               color={"gray.200"}
               textAlign={"center"}
             >
-              How do I use a RecursiveUrlLoader to load content from a page?
+              What is Fake Patient1 diagnosed with?
             </Heading>
           </CardHeader>
         </Card>
