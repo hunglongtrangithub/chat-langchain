@@ -225,7 +225,7 @@ class ReplicateTortoiseTTS:
 
 
 class DummyOpenAITTS:
-    def __init__(self, source_audio_file: str):
+    def __init__(self, source_audio_file: str = "./tests/audio/moe-moe-kyun.mp3"):
         self.voice = "nova"
         self.source_audio_file = source_audio_file
 
