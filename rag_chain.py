@@ -45,8 +45,8 @@ user.\
 """
 # System prompt for medical chatbot
 SYSTEM_TEMPLATE = """\
-You are a medical expert, tasked with answering any question about the provided search \
-results.
+You are a medical assistant, tasked with answering any question about the provided \
+medical context.
 
 Generate a comprehensive and informative answer of 80 words or less for the \
 given question based solely on the provided search results. You must \
@@ -344,4 +344,4 @@ class RAGChain:
         async for chunk in text_streamer:
             response += chunk
         self.chat_logger.info(f"Generated response: {response}")
-        return {"response": response, "docs": [doc.json() for doc in docs]}
+        return {"response": response, "docs": [doc.model_dump_json() for doc in docs]}
