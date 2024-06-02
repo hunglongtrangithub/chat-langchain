@@ -11,8 +11,10 @@ import {
   Box,
   Button,
   Divider,
-	Spacer,
-	Spinner,
+  Spacer,
+  Spinner,
+  IconButton,
+  CircularProgress,
 } from "@chakra-ui/react";
 import { sendFeedback } from "../utils/sendFeedback";
 import { apiBaseUrl } from "../utils/constants";
@@ -122,7 +124,8 @@ export function ChatMessageBubble(props: {
   const isUser = role === "user";
   const [isLoading, setIsLoading] = useState(false);
   const [traceIsLoading, setTraceIsLoading] = useState(false);
-  const [speechIsLoading, setSpeechIsLoading] = useState(false);
+  const [isSpeechLoading, setIsSpeechLoading] = useState(false);
+  const [isSpeechPlaying, setIsSpeechPlaying] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [comment, setComment] = useState("");
   const [feedbackColor, setFeedbackColor] = useState("");
@@ -255,34 +258,46 @@ export function ChatMessageBubble(props: {
       emojis: buttonId === "upButton" ? ["👍"] : ["👎"],
     });
   };
-
+  // NOTE: May need to remove this function in the future
   const playMessageAudio = async (message: string, conversationId: string) => {
-    console.log("play message audio for ", message);
-    
-    setSpeechIsLoading(true);
-		const audioResponse = await fetch(apiBaseUrl + "/text_to_speech", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ message, conversationId }),
-		});
-		if (!audioResponse.ok) {
-			console.error("Failed to fetch audio");
-			toast.error("Failed to transform text to speech for AI response.");
+    console.log("play message audio");
 
-			setSpeechIsLoading(false);
-			return;
-		}
+    setIsSpeechLoading(true);
+    const audioResponse = await fetch(apiBaseUrl + "/text_to_speech", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, conversationId }),
+    });
+    if (!audioResponse.ok) {
+      console.error("Failed to fetch audio");
+      toast.error("Failed to transform text to speech for AI response.");
 
-		const audioBlob = await audioResponse.blob();
-		const audioUrl = URL.createObjectURL(audioBlob);
-		const audio = new Audio(audioUrl);
+      setIsSpeechLoading(false);
+      return;
+    }
 
-		console.log("playing audio");
-		audio.play();
-		
-		audio.onended = () => { setSpeechIsLoading(false) };
+    const audioBlob = await audioResponse.blob();
+    const audioUrl = URL.createObjectURL(audioBlob);
+    const audio = new Audio(audioUrl);
+
+    console.log("playing audio");
+    // setTimeout(() => {
+    //   audio.play();
+    // }, 1000)
+    audio.play();
+
+    audio.onplay = () => {
+      console.log("audio playing");
+      setIsSpeechLoading(false);
+      setIsSpeechPlaying(true);
+    };
+
+    audio.onended = () => {
+      console.log("audio ended");
+      setIsSpeechPlaying(false);
+    };
   };
-  
+
   return (
     <VStack align="start" spacing={5} pb={5}>
       {!isUser && filteredSources.length > 0 && (
@@ -398,17 +413,20 @@ export function ChatMessageBubble(props: {
               colorScheme="blue"
               onClick={(e) => {
                 e.preventDefault();
-                if (speechIsLoading) return;
+                if (isSpeechLoading || isSpeechPlaying) return;
                 playMessageAudio(text, props.conversationId);
               }}
             >
-                🔉 Audio
-						</Button>
-						<Spacer />
-						<Spinner size="sm" color="blue.300" display={speechIsLoading ? "block" : "none"} />
+              🔉 Audio
+            </Button>
+            <Spacer />
+          {isSpeechPlaying ? (
+            <Spinner emptyColor="white"/>
+            ) : isSpeechLoading ? (
+              <CircularProgress isIndeterminate size="30px" color="blue.300" />
+            ) : null}
           </HStack>
         )}
-
       {!isUser && <Divider mt={4} mb={4} />}
     </VStack>
   );
