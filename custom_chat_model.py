@@ -46,7 +46,33 @@ class BaseChat(ABC):
         pass
 
 
+class DummyChat(BaseChat):
+    def __init__(self, default_message: str = "This is a dummy chat message."):
+        logger.info("DummyChat initialized.")
+        self.default_message = default_message
+
+    def invoke(self, current_conversation: List[Dict[str, str]]) -> str:
+        return "DummyChat invoke:" + self.default_message
+
+    def stream(
+        self, current_conversation: List[Dict[str, str]]
+    ) -> Generator[str, None, None]:
+        yield "DummyChat stream:" + self.default_message
+
+    async def ainvoke(self, current_conversation: List[Dict[str, str]]) -> str:
+        return "DummyChat ainvoke:" + self.default_message
+
+    async def astream(
+        self, current_conversation: List[Dict[str, str]]
+    ) -> AsyncGenerator[str, None]:
+        async def async_generator():
+            yield "DummyChat astream:" + self.default_message
+
+        return async_generator()
+
+
 class CustomChatHuggingFace(BaseChat):
+
     default_generation_kwargs = {
         # "truncation": True,
         # "max_length": 512,
@@ -84,8 +110,7 @@ class CustomChatHuggingFace(BaseChat):
             self.model = (
                 AutoModelForCausalLM.from_pretrained(
                     self.checkpoint,
-                    device_map="auto",
-                    torch_dtype=torch.bfloat16,
+                    device_map="auto" if self.device == "cuda" else self.device,
                 )
                 if not model
                 else model
@@ -128,8 +153,6 @@ class CustomChatHuggingFace(BaseChat):
     def _determine_device(self):
         if torch.cuda.is_available():
             return "cuda"
-        elif torch.backends.mps.is_available():
-            return "mps"
         else:
             return "cpu"
 
@@ -241,14 +264,19 @@ class CustomChatHuggingFace(BaseChat):
     async def astream(
         self, current_conversation: list[dict[str, str]]
     ) -> AsyncGenerator[str, None]:
-        try:
-            for item in self.stream(current_conversation):
-                yield item
-        except Exception as e:
-            logger.error(
-                f"Error in astream generator: {e}",
-            )
-            raise
+        async def async_generator():
+            try:
+                for new_text in self.stream(current_conversation):
+                    yield new_text
+            except Exception as e:
+                logger.error(
+                    f"Error in astream generator: {e}",
+                    exc_info=True,
+                    stack_info=True,
+                )
+                raise
+
+        return async_generator()
 
 
 class CustomChatOpenAI(BaseChat):
@@ -322,18 +350,21 @@ class CustomChatOpenAI(BaseChat):
     async def astream(
         self, current_conversation: List[Dict[str, str]]
     ) -> AsyncGenerator[str, None]:
-        try:
-            completion = await self.async_client.chat.completions.create(
-                model=self.model_name,
-                messages=current_conversation,  # type: ignore
-                stream=True,
-            )
-            async for chunk in completion:
-                token = chunk.choices[0].delta.content or ""
-                yield token
-        except Exception as e:
-            self._handle_api_error(e)
-            raise
+        async def async_generator():
+            try:
+                completion = await self.async_client.chat.completions.create(
+                    model=self.model_name,
+                    messages=current_conversation,  # type: ignore
+                    stream=True,
+                )
+                async for chunk in completion:
+                    token = chunk.choices[0].delta.content or ""
+                    yield token
+            except Exception as e:
+                self._handle_api_error(e)
+                raise
+
+        return async_generator()
 
 
 class CustomChatLlamaReplicate(BaseChat):
@@ -440,25 +471,30 @@ class CustomChatLlamaReplicate(BaseChat):
     async def astream(
         self, current_conversation: List[Dict[str, str]]
     ) -> AsyncGenerator[str, None]:
-        try:
-            output = await replicate.async_stream(
-                self.model_name,
-                input={
-                    "prompt": self.process_chat(current_conversation),
-                    "max_new_tokens": 512,
-                    "temperature": 0.75,
-                },
-            )
-            async for chunk in output:
-                if chunk.event.value == "output":
-                    yield chunk.data
-                elif chunk.event.value == "error":
-                    logger.error(f"Error in Replicate stream: {chunk.data}")
-                elif chunk.event.value == "done":
-                    logger.info(f"Replicate stream done: {chunk.data or 'successful'}")
-        except Exception as e:
-            self._handle_error(e, context="astream")
-            raise
+        async def async_generator():
+            try:
+                output = await replicate.async_stream(
+                    self.model_name,
+                    input={
+                        "prompt": self.process_chat(current_conversation),
+                        "max_new_tokens": 512,
+                        "temperature": 0.75,
+                    },
+                )
+                async for chunk in output:
+                    if chunk.event.value == "output":
+                        yield chunk.data
+                    elif chunk.event.value == "error":
+                        logger.error(f"Error in Replicate stream: {chunk.data}")
+                    elif chunk.event.value == "done":
+                        logger.info(
+                            f"Replicate stream done: {chunk.data or 'successful'}"
+                        )
+            except Exception as e:
+                self._handle_error(e, context="astream")
+                raise
+
+        return async_generator()
 
 
 class CustomChatGroq(BaseChat):
@@ -547,19 +583,22 @@ class CustomChatGroq(BaseChat):
     async def astream(
         self, current_conversation: List[Dict[str, str]]
     ) -> AsyncGenerator[str, None]:
-        try:
-            completion = await self.async_client.chat.completions.create(
-                model=self.model_name,
-                messages=current_conversation,  # type: ignore
-                **self.generation_kwargs,
-                stream=True,
-            )
-            async for chunk in completion:
-                token = chunk.choices[0].delta.content or ""
-                yield token
-        except Exception as e:
-            self._handle_api_error(e)
-            raise
+        async def async_generator():
+            try:
+                completion = await self.async_client.chat.completions.create(
+                    model=self.model_name,
+                    messages=current_conversation,  # type: ignore
+                    **self.generation_kwargs,
+                    stream=True,
+                )
+                async for chunk in completion:
+                    token = chunk.choices[0].delta.content or ""
+                    yield token
+            except Exception as e:
+                self._handle_api_error(e)
+                raise
+
+        return async_generator()
 
 
 # CHECKPOINT = "facebook/opt-125m"
