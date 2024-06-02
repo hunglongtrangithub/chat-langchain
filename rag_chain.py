@@ -185,7 +185,7 @@ class RAGChain:
                 [{"role": "user", "content": rephrase_question_prompt}],
             )
             query_question = rephrased_question.strip()
-            self.chat_logger.info(f"Rephrased question: {query_question}")
+            # self.chat_logger.info(f"Rephrased question: {query_question}")
         except Exception as e:
             logger.error(
                 "Error occurred while invoking chat model to rephrase question."
@@ -225,7 +225,7 @@ class RAGChain:
                 [{"role": "user", "content": rephrase_question_prompt}],
             )
             query_question = rephrased_question.strip()
-            self.chat_logger.info(f"Rephrased question: {query_question}")
+            # self.chat_logger.info(f"Rephrased question: {query_question}")
         except Exception as e:
             logger.error(
                 "Error occurred while invoking chat model to rephrase question",
@@ -260,7 +260,7 @@ class RAGChain:
             *formatted_chat_history,
             {"role": "user", "content": request.question},
         ]
-        self.chat_logger.info(f"Current conversation: {current_conversation[1:]}")
+        # self.chat_logger.info(f"Current conversation: {current_conversation[1:]}")
         try:
             text_streamer = self.chat_llm.stream(current_conversation)
             return text_streamer  # type: ignore
@@ -268,7 +268,7 @@ class RAGChain:
             logger.error("Error occurred while streaming response")
             yield ""
 
-    def aget_response_streamer_with_docs(
+    async def aget_response_streamer_with_docs(
         self, request: ChatRequest, docs: List[Document]
     ) -> AsyncGenerator[str, None]:
         serialized_docs = "\n".join(
@@ -282,9 +282,9 @@ class RAGChain:
             *formatted_chat_history,
             {"role": "user", "content": request.question},
         ]
-        self.chat_logger.info(f"Current conversation: {current_conversation[1:]}")
+        # self.chat_logger.info(f"Current conversation: {current_conversation[1:]}")
         try:
-            text_streamer = self.chat_llm.astream(current_conversation)
+            text_streamer = await self.chat_llm.astream(current_conversation)
             return text_streamer
         except Exception as e:
             logger.error("Error occurred while streaming response")
@@ -297,8 +297,8 @@ class RAGChain:
     async def astream_log(
         self, request: ChatRequest
     ) -> AsyncGenerator[Tuple[str, str, Union[Dict, str, List]], None]:
-        self.chat_logger.info("=" * 100)
-        self.chat_logger.info(f"Received request: {request.model_dump_json()}")
+        # self.chat_logger.info("=" * 100)
+        # self.chat_logger.info(f"Received request: {request.model_dump_json()}")
         yield "replace", "", {}
 
         docs = await self.aretrieve_documents(request)
@@ -307,13 +307,13 @@ class RAGChain:
         yield "add", "/logs/FindDocs", {}
         yield "add", "/logs/FindDocs/final_output", {"output": formatted_docs}
 
-        text_streamer = self.aget_response_streamer_with_docs(request, docs)
+        text_streamer = await self.aget_response_streamer_with_docs(request, docs)
         response = ""
         yield "add", "/streamed_output", []
         async for chunk in text_streamer:
             response += chunk
             yield "add", "/streamed_output/-", chunk
-        self.chat_logger.info(f"Generated response: {response}")
+        # self.chat_logger.info(f"Generated response: {response}")
         yield "replace", "/final_output", {"output": response}
 
     def stream_log(
@@ -321,7 +321,6 @@ class RAGChain:
     ) -> Generator[Tuple[str, str, Union[Dict, str, List]], None, None]:
         docs = self.retrieve_documents(request)
         formatted_docs = [doc.model_dump_json() for doc in docs]
-        print(formatted_docs)
         text_streamer = self.get_response_streamer_with_docs(request, docs)
 
         yield "replace", "", {}
@@ -334,14 +333,14 @@ class RAGChain:
         for chunk in text_streamer:
             response += chunk
             yield "add", "/streamed_output/-", chunk
-        self.chat_logger.info(f"Generated response: {response}")
+        # self.chat_logger.info(f"Generated response: {response}")
         yield "replace", "/final_output", {"output": response}
 
     async def ainvoke_log(self, request: ChatRequest) -> Dict[str, Union[str, List]]:
         docs = await self.aretrieve_documents(request)
-        text_streamer = self.aget_response_streamer_with_docs(request, docs)
+        text_streamer = await self.aget_response_streamer_with_docs(request, docs)
         response = ""
         async for chunk in text_streamer:
             response += chunk
-        self.chat_logger.info(f"Generated response: {response}")
+        # self.chat_logger.info(f"Generated response: {response}")
         return {"response": response, "docs": [doc.model_dump_json() for doc in docs]}
