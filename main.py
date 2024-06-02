@@ -16,22 +16,24 @@ from starlette.background import BackgroundTask
 
 from logger_config import get_logger
 from retriever import CustomRetriever
-from custom_chat_model import CustomChatHuggingFace
+from custom_chat_model import CustomChatHuggingFace, DummyChat
 from rag_chain import ChatRequest, RAGChain
-from tts import CoquiTTS
-from transcription import WhisperSTT
+from tts import CoquiTTS, DummyOpenAITTS
+from transcription import WhisperSTT, DummyOpenAIWhisperSTT
 from config import settings
 
 logger = get_logger(__name__)
 
 
-chat_model = CustomChatHuggingFace("meta-llama/Meta-Llama-3-8B-Instruct")
+# chat_model = CustomChatHuggingFace("meta-llama/Meta-Llama-3-8B-Instruct")
 # chat_model = CustomChatHuggingFace("facebook/opt-125m")
+chat_model = DummyChat()
 retriever = CustomRetriever(num_docs=5, semantic_ratio=0.1)
 chain = RAGChain(retriever, chat_model)
-tts = CoquiTTS()
-transcribe = WhisperSTT()
-
+# tts = CoquiTTS()
+# transcribe = WhisperSTT()
+tts = DummyOpenAITTS()
+transcribe = DummyOpenAIWhisperSTT()
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -57,7 +59,8 @@ def post_processing(op, path, chunk):
 async def astream_generator(subscription: AsyncGenerator):
     try:
         async for op, path, chunk in subscription:
-            print(f"op: {op}, path: {path}, chunk: {chunk}")
+            if path == "/stream-output/-":
+                print(f"op: {op}, path: {path}, chunk: {chunk}")
             yield f"event: data\ndata: {post_processing(op, path, chunk)}\n\n"
             # HACK: This is a temporary fix to prevent the browser from being unable to handle the stream when it becomes too fast
             await asyncio.sleep(0.01)
@@ -77,8 +80,7 @@ async def astream_generator(subscription: AsyncGenerator):
 @app.post("/chat/ainvoke_log")
 async def chat(request: ChatRequest):
     try:
-        response = chain.ainvoke_log(request)
-        logger.info(f"response: {response}")
+        response = await chain.ainvoke_log(request)
         return response
     except Exception as e:
         error_message = f"Internal server error from endpoint /chat/ainvoke_log: {e}"
