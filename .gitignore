@@ -144,8 +144,9 @@ pyvenv.cfg
 node_modules/
 .envrc
 
-# Ignore generated speech file
+# Ignore generated speech files and video files 
 audio/
+video/
 
 # ignore model directory
 llm_llama/
