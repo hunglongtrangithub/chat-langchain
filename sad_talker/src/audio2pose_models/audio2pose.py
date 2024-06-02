@@ -1,8 +1,8 @@
 import torch
 from torch import nn
-from src.audio2pose_models.cvae import CVAE
-from src.audio2pose_models.discriminator import PoseSequenceDiscriminator
-from src.audio2pose_models.audio_encoder import AudioEncoder
+from sad_talker.src.audio2pose_models.cvae import CVAE
+from sad_talker.src.audio2pose_models.discriminator import PoseSequenceDiscriminator
+from sad_talker.src.audio2pose_models.audio_encoder import AudioEncoder
 
 class Audio2Pose(nn.Module):
     def __init__(self, cfg, wav2lip_checkpoint, device='cuda'):

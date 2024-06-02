@@ -20,6 +20,7 @@ from custom_chat_model import CustomChatHuggingFace, DummyChat
 from rag_chain import ChatRequest, RAGChain
 from tts import CoquiTTS, DummyOpenAITTS
 from transcription import WhisperSTT, DummyOpenAIWhisperSTT
+from talking_face import DummyTalker
 from config import settings
 
 logger = get_logger(__name__)
@@ -34,6 +35,7 @@ chain = RAGChain(retriever, chat_model)
 # transcribe = WhisperSTT()
 tts = DummyOpenAITTS()
 transcribe = DummyOpenAIWhisperSTT()
+talker = DummyTalker()
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,

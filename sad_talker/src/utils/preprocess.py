@@ -6,17 +6,17 @@ from PIL import Image
 # 3dmm extraction
 import safetensors
 import safetensors.torch 
-from src.face3d.util.preprocess import align_img
-from src.face3d.util.load_mats import load_lm3d
-from src.face3d.models import networks
+from sad_talker.src.face3d.util.preprocess import align_img
+from sad_talker.src.face3d.util.load_mats import load_lm3d
+from sad_talker.src.face3d.models import networks
 
 from scipy.io import loadmat, savemat
-from src.utils.croper import Preprocesser
+from sad_talker.src.utils.croper import Preprocesser
 
 
 import warnings
 
-from src.utils.safetensor_helper import load_x_from_safetensor 
+from sad_talker.src.utils.safetensor_helper import load_x_from_safetensor 
 warnings.filterwarnings("ignore")
 
 def split_coeff(coeffs):

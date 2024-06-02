@@ -3,13 +3,13 @@
 
 import numpy as np
 import torch
-from src.face3d.models.base_model import BaseModel
-from src.face3d.models import networks
-from src.face3d.models.bfm import ParametricFaceModel
-from src.face3d.models.losses import perceptual_loss, photo_loss, reg_loss, reflectance_loss, landmark_loss
-from src.face3d.util import util 
-from src.face3d.util.nvdiffrast import MeshRenderer
-# from src.face3d.util.preprocess import estimate_norm_torch
+from sad_talker.src.face3d.models.base_model import BaseModel
+from sad_talker.src.face3d.models import networks
+from sad_talker.src.face3d.models.bfm import ParametricFaceModel
+from sad_talker.src.face3d.models.losses import perceptual_loss, photo_loss, reg_loss, reflectance_loss, landmark_loss
+from sad_talker.src.face3d.util import util 
+from sad_talker.src.face3d.util.nvdiffrast import MeshRenderer
+# from sad_talker.src.face3d.util.preprocess import estimate_norm_torch
 
 import trimesh
 from scipy.io import savemat

@@ -1,8 +1,8 @@
 # check the sync of 3dmm feature and the audio
 import cv2
 import numpy as np
-from src.face3d.models.bfm import ParametricFaceModel
-from src.face3d.models.facerecon_model import FaceReconModel
+from sad_talker.src.face3d.models.bfm import ParametricFaceModel
+from sad_talker.src.face3d.models.facerecon_model import FaceReconModel
 import torch
 import subprocess, platform
 import scipy.io as scio

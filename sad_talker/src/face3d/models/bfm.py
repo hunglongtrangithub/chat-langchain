@@ -5,7 +5,7 @@ import numpy as np
 import  torch
 import torch.nn.functional as F
 from scipy.io import loadmat
-from src.face3d.util.load_mats import transferBFM09
+from sad_talker.src.face3d.util.load_mats import transferBFM09
 import os
 
 def perspective_projection(focal, center):

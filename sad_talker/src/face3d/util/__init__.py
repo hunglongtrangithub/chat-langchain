@@ -1,3 +1,3 @@
 """This package includes a miscellaneous collection of useful helper functions."""
-from src.face3d.util import *
+from sad_talker.src.face3d.util import *
 

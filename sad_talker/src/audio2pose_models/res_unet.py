@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from src.audio2pose_models.networks import ResidualConv, Upsample
+from sad_talker.src.audio2pose_models.networks import ResidualConv, Upsample
 
 
 class ResUnet(nn.Module):

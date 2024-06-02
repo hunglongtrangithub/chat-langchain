@@ -13,15 +13,15 @@ import imageio
 import torch
 
 
-from src.facerender.modules.keypoint_detector import HEEstimator, KPDetector
-from src.facerender.modules.mapping import MappingNet
-from src.facerender.modules.generator import OcclusionAwareSPADEGenerator
-from src.facerender.modules.make_animation import make_animation 
+from sad_talker.src.facerender.modules.keypoint_detector import HEEstimator, KPDetector
+from sad_talker.src.facerender.modules.mapping import MappingNet
+from sad_talker.src.facerender.modules.generator import OcclusionAwareSPADEGenerator
+from sad_talker.src.facerender.modules.make_animation import make_animation 
 
 from pydub import AudioSegment 
-from src.utils.face_enhancer import enhancer_generator_with_len, enhancer_list
-from src.utils.paste_pic import paste_pic
-from src.utils.videoio import save_video_with_watermark
+from sad_talker.src.utils.face_enhancer import enhancer_generator_with_len, enhancer_list
+from sad_talker.src.utils.paste_pic import paste_pic
+from sad_talker.src.utils.videoio import save_video_with_watermark
 
 try:
     import webui  # in webui
