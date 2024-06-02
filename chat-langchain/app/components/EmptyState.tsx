@@ -8,15 +8,17 @@ import {
   Spacer,
 } from "@chakra-ui/react";
 
-export function EmptyState(props: { onChoice: (question: string) => any }) {
+export function EmptyState(props: {
+  onChoice: (question: string) => any;
+  titleText: string;
+}) {
   const handleClick = (e: MouseEvent) => {
     props.onChoice((e.target as HTMLDivElement).innerText);
   };
   return (
     <div className="rounded flex flex-col items-center max-w-full md:p-8">
       <Heading fontSize="3xl" fontWeight={"medium"} mb={1} color={"white"}>
-        {/* Chat LangChain 🦜🔗 */}
-        Medical Chatbot
+        {props.titleText}
       </Heading>
       <Heading
         fontSize="xl"
@@ -26,10 +28,6 @@ export function EmptyState(props: { onChoice: (question: string) => any }) {
         marginTop={"10px"}
         textAlign={"center"}
       >
-        {/* Ask me anything about LangChain&apos;s{" "}
-        <Link href="https://python.langchain.com/" color={"blue.200"}>
-          Python documentation!
-        </Link> */}
       </Heading>
       <Flex marginTop={"25px"} grow={1} maxWidth={"800px"} width={"100%"}>
         <Card

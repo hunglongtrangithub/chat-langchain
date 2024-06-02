@@ -22,22 +22,27 @@ import {
   InputRightElement,
   InputLeftElement,
   Spinner,
+  CircularProgress,
+  Avatar,
+  HStack,
+  VStack,
 } from "@chakra-ui/react";
 import { ArrowUpIcon } from "@chakra-ui/icons";
 import { MdMic, MdStop } from "react-icons/md";
 
 import { Source } from "./SourceBubble";
 import { apiBaseUrl } from "../utils/constants";
+import { RiRobot2Line } from "react-icons/ri";
 
-export function ChatWindow(props: {
-  placeholder?: string;
-  titleText?: string;
-}) {
+export function ChatWindow(props: { titleText?: string }) {
+  const { titleText = "Medical Chatbot" } = props;
   const conversationId = uuidv4();
   const messageContainerRef = useRef<HTMLDivElement | null>(null);
   const [messages, setMessages] = useState<Array<Message>>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isSpeechLoading, setIsSpeechLoading] = useState(false);
+  const [isSpeechPlaying, setIsSpeechPlaying] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [chatHistory, setChatHistory] = useState<
@@ -67,7 +72,7 @@ export function ChatWindow(props: {
       this.mediaRecorder.start(10); // HACK: This is a temporary fix to prevent the first chunk from being empty
     },
 
-    stop: async function () {
+    stop: async function (playAudio: boolean = false) {
       console.log("stop recording");
       if (this.mediaRecorder) {
         this.mediaRecorder.onstop = async () => {
@@ -77,16 +82,18 @@ export function ChatWindow(props: {
             .forEach((track) => track.stop()); // Stop all tracks
           this.audioChunks = []; // Clear audioChunks after stopping
           this.mediaRecorder = null; // Reset mediaRecorder after stopping
-          await transcribeAndSendMessage(audioBlob);
+          await transcribeAndSendMessage(audioBlob, playAudio);
         };
         this.mediaRecorder.stop();
       }
     },
   });
 
-  const { placeholder, titleText = "An LLM" } = props;
-
-  const sendMessage = async (message?: string, noStream: boolean = false) => {
+  const sendMessage = async (
+    message?: string,
+    playAudio: boolean = false,
+    noStream: boolean = false,
+  ) => {
     console.log("API Base Url:", apiBaseUrl);
     if (messageContainerRef.current) {
       messageContainerRef.current.classList.add("grow");
@@ -180,6 +187,9 @@ export function ChatWindow(props: {
           { human: messageValue, ai: accumulatedMessage },
         ]);
         setIsLoading(false);
+        if (playAudio) {
+          playMessageAudio(accumulatedMessage);
+        }
         return;
       }
       await fetchEventSource(apiBaseUrl + "/chat/astream_log", {
@@ -203,6 +213,9 @@ export function ChatWindow(props: {
               { human: messageValue, ai: accumulatedMessage },
             ]);
             setIsLoading(false);
+            if (playAudio) {
+              playMessageAudio(accumulatedMessage);
+            }
             return;
           }
           if (msg.event === "error") {
@@ -274,7 +287,10 @@ export function ChatWindow(props: {
     await sendMessage(question);
   };
 
-  const transcribeAndSendMessage = async (audioBlob: Blob) => {
+  const transcribeAndSendMessage = async (
+    audioBlob: Blob,
+    playAudio: boolean = false,
+  ) => {
     console.log("transcribe and send message");
 
     const formData = new FormData();
@@ -292,11 +308,50 @@ export function ChatWindow(props: {
       console.log(data);
       const userMessage = data.transcript;
       setIsTranscribing(false);
-      await sendMessage(userMessage);
+      await sendMessage(userMessage, playAudio);
     } else {
       setIsTranscribing(false);
       toast.error("Failed to transform user audio to text.");
     }
+  };
+
+  const playMessageAudio = async (message: string) => {
+    console.log("play message audio");
+
+    setIsSpeechLoading(true);
+    const audioResponse = await fetch(apiBaseUrl + "/text_to_speech", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, conversationId }),
+    });
+    if (!audioResponse.ok) {
+      console.error("Failed to fetch audio");
+      toast.error("Failed to transform text to speech for AI response.");
+
+      setIsSpeechLoading(false);
+      return;
+    }
+
+    const audioBlob = await audioResponse.blob();
+    const audioUrl = URL.createObjectURL(audioBlob);
+    const audio = new Audio(audioUrl);
+
+    console.log("playing audio");
+    // setTimeout(() => {
+    //   audio.play();
+    // }, 1000)
+    audio.play();
+
+    audio.onplay = () => {
+      console.log("audio playing");
+      setIsSpeechLoading(false);
+      setIsSpeechPlaying(true);
+    };
+    
+    audio.onended = () => {
+      console.log("audio ended");
+      setIsSpeechPlaying(false);
+    };
   };
 
   return (
@@ -311,6 +366,57 @@ export function ChatWindow(props: {
           </Heading>
         </Flex>
       )}
+      <HStack spacing={20}>
+        <VStack spacing={2}>
+          <Avatar size="2xl" name="ChatBot" marginBottom={"20px"} />
+          <IconButton
+            colorScheme="blue"
+            rounded={"full"}
+            aria-label="Bot status"
+            icon={
+              isSpeechPlaying ? (
+                <Spinner />
+              ) : isSpeechLoading ? (
+                <CircularProgress
+                  isIndeterminate
+                  size="30px"
+                  color="blue.300"
+                />
+              ) : (
+                <RiRobot2Line />
+              )
+            }
+          />
+        </VStack>
+        <VStack spacing={2}>
+          <Avatar size="2xl" name="User" marginBottom={"20px"} />
+          <IconButton
+            colorScheme="blue"
+            rounded={"full"}
+            aria-label="User mic status"
+            icon={
+              isRecording ? (
+                <MdStop />
+              ) : isTranscribing ? (
+                <Spinner />
+              ) : (
+                <MdMic />
+              )
+            }
+            type="submit"
+            onClick={(e) => {
+              e.preventDefault();
+              if (isRecording) {
+                setIsRecording(false);
+                recorderRef.current.stop(true);
+              } else {
+                setIsRecording(true);
+                recorderRef.current.start();
+              }
+            }}
+          />
+        </VStack>
+      </HStack>
       <div
         className="flex flex-col-reverse w-full mb-2 overflow-auto"
         ref={messageContainerRef}
@@ -329,7 +435,7 @@ export function ChatWindow(props: {
               ></ChatMessageBubble>
             ))
         ) : (
-          <EmptyState onChoice={sendInitialQuestion} />
+          <EmptyState onChoice={sendInitialQuestion} titleText={titleText} />
         )}
       </div>
       <InputGroup size="md" alignItems={"center"}>
@@ -397,7 +503,7 @@ export function ChatWindow(props: {
       {messages.length === 0 ? (
         <footer className="flex justify-center absolute bottom-8">
           <a
-            href="https://github.com/langchain-ai/chat-langchain"
+            href="hhttps://github.com/hunglongtrangithub/chat-langchain"
             target="_blank"
             className="text-white flex items-center"
           >
