@@ -8,7 +8,6 @@ from fastapi import FastAPI, File, HTTPException, UploadFile, Form
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from pydantic import BaseModel
 from pathlib import Path
 import json
 
@@ -16,10 +15,10 @@ from starlette.background import BackgroundTask
 
 from logger_config import get_logger
 from retriever import CustomRetriever
-from custom_chat_model import CustomChatHuggingFace, DummyChat
+from custom_chat_model import DummyChat
 from rag_chain import ChatRequest, RAGChain
-from tts import CoquiTTS, DummyOpenAITTS
-from transcription import WhisperSTT, DummyOpenAIWhisperSTT
+from tts import DummyTTS
+from transcription import DummyOpenAIWhisperSTT
 from talking_face import DummyTalker
 from config import settings
 
@@ -33,7 +32,7 @@ retriever = CustomRetriever(num_docs=5, semantic_ratio=0.1)
 chain = RAGChain(retriever, chat_model)
 # tts = CoquiTTS()
 # transcribe = WhisperSTT()
-tts = DummyOpenAITTS()
+tts = DummyTTS()
 transcribe = DummyOpenAIWhisperSTT()
 talker = DummyTalker()
 app = FastAPI()
@@ -105,7 +104,8 @@ async def achat(request: ChatRequest):
 
 @app.post("/transcribe_audio")
 async def transcribe_audio(
-    file: UploadFile = File(...), conversationId: str = Form(...)
+    user_audio_file: UploadFile = File(...),
+    conversationId: str = Form(...),
 ):
     file_name = f"{conversationId}.mp3"
     # save to local file
@@ -114,7 +114,7 @@ async def transcribe_audio(
     file_path = str(upload_folder / file_name)
 
     with open(file_path, "wb") as f:
-        f.write(file.file.read())
+        f.write(user_audio_file.file.read())
     try:
         transcript = await transcribe.arun(audio_path=file_path)
         return {"transcript": transcript}
@@ -127,24 +127,48 @@ async def transcribe_audio(
         )
 
 
-class MessageRequest(BaseModel):
-    message: str
-    conversationId: str
+def delete_file(*file_paths: str):
+    """Deletes a file from the filesystem."""
+    for file_path in file_paths:
+        try:
+            os.remove(file_path)
+            logger.info(f"Deleted file {file_path}")
+        except Exception as e:
+            logger.error(f"Error deleting file {file_path}: {e}")
 
 
 @app.post("/text_to_speech")
-async def text_to_speech(request: MessageRequest):
-    text = request.message
-    speech_file_name = f"{request.conversationId}.wav"
-    upload_folder = Path(__file__).resolve().parent / "audio"
-    upload_folder.mkdir(exist_ok=True)
-    speech_file_path = str(upload_folder / speech_file_name)
+async def text_to_speech(
+    bot_voice_file: UploadFile = File(...),
+    message: str = Form(...),
+    conversationId: str = Form(...),
+    chatbot: str = Form(...),
+):
+    speech_file_name = f"{conversationId}.wav"
+    speech_folder = Path(__file__).resolve().parent / "audio"
+    speech_folder.mkdir(exist_ok=True)
+    speech_file_path = str(speech_folder / speech_file_name)
+
+    voice_folder = Path(__file__).resolve().parent / "voices"
+    voice_folder.mkdir(exist_ok=True)
+    voice_file_path = str(voice_folder / f"{chatbot}.mp3")
+
+    with open(voice_file_path, "wb") as f:
+        f.write(bot_voice_file.file.read())
 
     try:
-        await tts.arun(text=text, file_path=speech_file_path)
+        await tts.arun(
+            text=message,
+            file_path=speech_file_path,
+            voice_path=voice_file_path,
+        )
         return FileResponse(
             speech_file_path,
-            background=BackgroundTask(delete_file, speech_file_path),
+            background=BackgroundTask(
+                delete_file,
+                speech_file_path,
+                voice_file_path,
+            ),
         )
     except Exception as e:
         error_message = f"Internal server error from endpoint /text_to_speech: {e}"
@@ -155,13 +179,54 @@ async def text_to_speech(request: MessageRequest):
         )
 
 
-def delete_file(file_path: str):
-    """Deletes a file from the filesystem."""
+@app.post("/speech_to_video")
+async def text_to_video(
+    bot_speech_file: UploadFile = File(...),
+    bot_image_file: UploadFile = File(...),
+    conversationId: str = Form(...),
+    chatbot: str = Form(...),
+):
+    speech_file_name = f"{conversationId}.wav"
+    speech_folder = Path(__file__).resolve().parent / "audio"
+    speech_folder.mkdir(exist_ok=True)
+    speech_file_path = str(speech_folder / speech_file_name)
+
+    face_folder = Path(__file__).resolve().parent / "faces"
+    face_folder.mkdir(exist_ok=True)
+    face_file_path = str(face_folder / f"{chatbot}.jpg")
+
+    video_file_name = f"{chatbot}__{conversationId}.mp4"
+    video_folder = Path(__file__).resolve().parent / "video"
+    video_folder.mkdir(exist_ok=True)
+    video_file_path = str(video_folder / video_file_name)
+
+    with open(speech_file_path, "wb") as f:
+        f.write(bot_speech_file.file.read())
+    with open(face_file_path, "wb") as f:
+        f.write(bot_image_file.file.read())
+
     try:
-        os.remove(file_path)
-        logger.info(f"Deleted file {file_path}")
+        await talker.arun(
+            video_path=video_file_path,
+            audio_path=speech_file_path,
+            image_path=face_file_path,
+        )
+        return FileResponse(
+            video_file_path,
+            background=BackgroundTask(
+                delete_file,
+                speech_file_path,
+                face_file_path,
+                video_file_path,
+            ),
+        )
     except Exception as e:
-        logger.error(f"Error deleting file {file_path}: {e}")
+        error_message = f"Internal server error from endpoint /speech_to_video: {e}"
+        logger.error(error_message)
+        raise HTTPException(
+            status_code=500,
+            detail=error_message,
+        )
 
 
 if __name__ == "__main__":
