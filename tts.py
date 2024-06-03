@@ -48,7 +48,7 @@ class BarkSuno:
 
         logger.info(f"{self.model_name} initialized.")
 
-    def run(self, text: str, file_path: str):
+    def run(self, text: str, file_path: str, voice_path: str = None):
         try_create_directory(Path(file_path).resolve().parent)
         try:
             inputs = self.processor(
@@ -69,7 +69,7 @@ class BarkSuno:
             logger.error(f"Error in BarkSuno method: {e}")
             raise
 
-    async def arun(self, text: str, file_path: str):
+    async def arun(self, text: str, file_path: str, voice_path: str = None):
         try:
             self.run(text, file_path)
         except Exception as e:
@@ -111,7 +111,7 @@ class CoquiTTS:
             "hi",
         ]
 
-    def run(self, text: str, file_path: str):
+    def run(self, text: str, file_path: str, voice_path: str = None):
         try_create_directory(Path(file_path).resolve().parent)
         try:
             lang_iso = detect(text)
@@ -131,7 +131,7 @@ class CoquiTTS:
             logger.error(f"Error in CoquiTTS method: {e}")
             raise
 
-    async def arun(self, text: str, file_path: str):
+    async def arun(self, text: str, file_path: str, voice_path: str = None):
         try:
             self.run(text, file_path)
         except Exception as e:
@@ -149,7 +149,7 @@ class OpenAITTS:
     def _get_openai_api_key(self):
         return settings.openai_api_key.get_secret_value()
 
-    def run(self, text: str, file_path: str):
+    def run(self, text: str, file_path: str, voice_path: str = None):
         try_create_directory(Path(file_path).resolve().parent)
         try:
             response = self.client.audio.speech.create(
@@ -162,7 +162,7 @@ class OpenAITTS:
             logger.error(f"Error in OpenAI TTS method: {e}")
             raise
 
-    async def arun(self, text: str, file_path: str):
+    async def arun(self, text: str, file_path: str, voice_path: str = None):
         try_create_directory(Path(file_path).resolve().parent)
         try:
             response = await self.async_client.audio.speech.create(
@@ -181,7 +181,7 @@ class ReplicateTortoiseTTS:
         self.voice_path = Path(__file__).parent / "voices" / "ellie.mp3"
         self.replicate_id = "afiaka87/tortoise-tts:e9658de4b325863c4fcdc12d94bb7c9b54cbfe351b7ca1b36860008172b91c71"
 
-    def run(self, text: str, file_path: str):
+    def run(self, text: str, file_path: str, voice_path: str = None):
         try_create_directory(Path(file_path).resolve().parent)
         custom_voice = try_open_audio_file(self.voice_path)
         input = {
@@ -202,7 +202,7 @@ class ReplicateTortoiseTTS:
             logger.error(f"Failed to run ReplicateTortoiseTTS's run method: {e}")
             raise
 
-    async def arun(self, text: str, file_path: str):
+    async def arun(self, text: str, file_path: str, voice_path: str = None):
         try_create_directory(Path(file_path).resolve().parent)
         custom_voice = try_open_audio_file(self.voice_path)
         input = {
@@ -224,31 +224,30 @@ class ReplicateTortoiseTTS:
             raise
 
 
-class DummyOpenAITTS:
-    def __init__(self, source_audio_file: str = "./tests/audio/moe-moe-kyun.mp3"):
-        self.voice = "nova"
-        self.source_audio_file = source_audio_file
+class DummyTTS:
+    def __init__(self):
+        logger.info("Dummy TTS initialized.")
 
-    def run(self, text: str, file_path: str):
+    def run(self, text: str, file_path: str, voice_path: str = None):
         """Synchronously copy audio content to specified file path."""
         try_create_directory(Path(file_path).resolve().parent)
         try:
-            # Copy the content of the source audio file to the specified file path
-            shutil.copy(self.source_audio_file, file_path)
+            # Copy the content of the voice file to the specified file path
+            shutil.copy(voice_path, file_path)
             logger.info("Dummy TTS file copied successfully.")
         except Exception as e:
             logger.error(f"Error in Dummy TTS method: {e}")
             raise
 
-    async def arun(self, text: str, file_path: str):
+    async def arun(self, text: str, file_path: str, voice_path: str = None):
         """Asynchronously copy audio content to specified file path."""
         try_create_directory(Path(file_path).resolve().parent)
         try:
             # Simulate async operation, if needed
             await asyncio.sleep(0)  # No delay needed, just for async syntax
 
-            # Copy the content of the source audio file to the specified file path
-            shutil.copy(self.source_audio_file, file_path)
+            # Copy the content of the voice file to the specified file path
+            shutil.copy(voice_path, file_path)
             logger.info("Dummy Async TTS file copied successfully.")
         except Exception as e:
             logger.error(f"Error in Dummy Async TTS method: {e}")
