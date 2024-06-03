@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { EmptyState } from "../components/EmptyState";
 import { ChatMessageBubble, Message } from "../components/ChatMessageBubble";
@@ -26,8 +26,13 @@ import {
   Avatar,
   HStack,
   VStack,
+  Button,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
 } from "@chakra-ui/react";
-import { ArrowUpIcon } from "@chakra-ui/icons";
+import { ArrowUpIcon, ChevronDownIcon } from "@chakra-ui/icons";
 import { MdMic, MdStop } from "react-icons/md";
 
 import { Source } from "./SourceBubble";
@@ -43,11 +48,32 @@ export function ChatWindow(props: { titleText?: string }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isSpeechLoading, setIsSpeechLoading] = useState(false);
   const [isSpeechPlaying, setIsSpeechPlaying] = useState(false);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [chatHistory, setChatHistory] = useState<
     { human: string; ai: string }[]
   >([]);
+  const [chatbots, setChatbots] = useState<string[]>([]);
+  const [selectedChatbot, setSelectedChatbot] = useState<string>("chatbot1");
+
+  const fetchBots = async () => {
+    const response = await fetch("api/bots").then((res) => res.json());
+    const botNames = response.bots;
+    console.log("Available chatbots: ", botNames);
+    setChatbots(botNames);
+    setSelectedChatbot(botNames[0]);
+  };
+  // Load available chatbots on component mount
+  useEffect(() => {
+    fetchBots();
+  }, []);
+
+  // Update the selected chatbot state when a new bot is selected
+  const handleChatbotSelect = (bot: string) => {
+    console.log("Selected chatbot: ", bot);
+    setSelectedChatbot(bot);
+  };
 
   const recorderRef = useRef({
     audioChunks: [] as Blob[],
@@ -72,7 +98,10 @@ export function ChatWindow(props: { titleText?: string }) {
       this.mediaRecorder.start(10); // HACK: This is a temporary fix to prevent the first chunk from being empty
     },
 
-    stop: async function (playAudio: boolean = false) {
+    stop: async function (
+      selectedChatbot: string,
+      callback_action: null | "audio" | "video" = null,
+    ) {
       console.log("stop recording");
       if (this.mediaRecorder) {
         this.mediaRecorder.onstop = async () => {
@@ -82,7 +111,12 @@ export function ChatWindow(props: { titleText?: string }) {
             .forEach((track) => track.stop()); // Stop all tracks
           this.audioChunks = []; // Clear audioChunks after stopping
           this.mediaRecorder = null; // Reset mediaRecorder after stopping
-          await transcribeAndSendMessage(audioBlob, playAudio);
+
+          await transcribeAndSendMessage(
+            audioBlob,
+            selectedChatbot,
+            callback_action,
+          );
         };
         this.mediaRecorder.stop();
       }
@@ -91,9 +125,8 @@ export function ChatWindow(props: { titleText?: string }) {
 
   const sendMessage = async (
     message?: string,
-    playAudio: boolean = false,
     noStream: boolean = false,
-  ) => {
+  ): Promise<string | undefined> => {
     console.log("API Base Url:", apiBaseUrl);
     if (messageContainerRef.current) {
       messageContainerRef.current.classList.add("grow");
@@ -187,93 +220,88 @@ export function ChatWindow(props: { titleText?: string }) {
           { human: messageValue, ai: accumulatedMessage },
         ]);
         setIsLoading(false);
-        if (playAudio) {
-          playMessageAudio(accumulatedMessage);
-        }
-        return;
-      }
-      await fetchEventSource(apiBaseUrl + "/chat/astream_log", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "text/event-stream",
-        },
-        body: JSON.stringify({
-          question: messageValue,
-          chat_history: chatHistory,
-        }),
-        openWhenHidden: true,
-        onerror(err) {
-          throw err;
-        },
-        onmessage(msg) {
-          if (msg.event === "end") {
-            setChatHistory((prevChatHistory) => [
-              ...prevChatHistory,
-              { human: messageValue, ai: accumulatedMessage },
-            ]);
-            setIsLoading(false);
-            if (playAudio) {
-              playMessageAudio(accumulatedMessage);
+      } else {
+        await fetchEventSource(apiBaseUrl + "/chat/astream_log", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "text/event-stream",
+          },
+          body: JSON.stringify({
+            question: messageValue,
+            chat_history: chatHistory,
+          }),
+          openWhenHidden: true,
+          onerror(err) {
+            throw err;
+          },
+          onmessage(msg) {
+            if (msg.event === "end") {
+              setChatHistory((prevChatHistory) => [
+                ...prevChatHistory,
+                { human: messageValue, ai: accumulatedMessage },
+              ]);
+              setIsLoading(false);
             }
-            return;
-          }
-          if (msg.event === "error") {
-            let errorMessage = JSON.parse(msg.data).message;
-            toast.error(errorMessage);
-          }
-          if (msg.event === "data" && msg.data) {
-            const chunk = JSON.parse(msg.data);
-            streamedResponse = applyPatch(
-              streamedResponse,
-              chunk.ops,
-            ).newDocument;
-            if (
-              Array.isArray(
-                streamedResponse?.logs?.[sourceStepName]?.final_output?.output,
-              )
-            ) {
-              sources = streamedResponse.logs[
-                sourceStepName
-              ].final_output.output.map((doc: string) => ({
-                url: JSON.parse(doc).source,
-                title: JSON.parse(doc).title,
-              }));
+            if (msg.event === "error") {
+              let errorMessage = JSON.parse(msg.data).message;
+              toast.error(errorMessage);
             }
-            if (streamedResponse.id !== undefined) {
-              runId = streamedResponse.id;
-            }
-            if (Array.isArray(streamedResponse?.streamed_output)) {
-              accumulatedMessage = streamedResponse.streamed_output.join("");
-            }
-            const parsedResult = marked.parse(accumulatedMessage);
-
-            setMessages((prevMessages) => {
-              let newMessages = [...prevMessages];
+            if (msg.event === "data" && msg.data) {
+              const chunk = JSON.parse(msg.data);
+              streamedResponse = applyPatch(
+                streamedResponse,
+                chunk.ops,
+              ).newDocument;
               if (
-                messageIndex === null ||
-                newMessages[messageIndex] === undefined
+                Array.isArray(
+                  streamedResponse?.logs?.[sourceStepName]?.final_output
+                    ?.output,
+                )
               ) {
-                messageIndex = newMessages.length;
-                newMessages.push({
-                  id: Math.random().toString(),
-                  content: parsedResult.trim(),
-                  text: accumulatedMessage.trim(),
-                  runId: runId,
-                  sources: sources,
-                  role: "assistant",
-                });
-              } else if (newMessages[messageIndex] !== undefined) {
-                newMessages[messageIndex].content = parsedResult.trim();
-                newMessages[messageIndex].text = accumulatedMessage.trim();
-                newMessages[messageIndex].runId = runId;
-                newMessages[messageIndex].sources = sources;
+                sources = streamedResponse.logs[
+                  sourceStepName
+                ].final_output.output.map((doc: string) => ({
+                  url: JSON.parse(doc).source,
+                  title: JSON.parse(doc).title,
+                }));
               }
-              return newMessages;
-            });
-          }
-        },
-      });
+              if (streamedResponse.id !== undefined) {
+                runId = streamedResponse.id;
+              }
+              if (Array.isArray(streamedResponse?.streamed_output)) {
+                accumulatedMessage = streamedResponse.streamed_output.join("");
+              }
+              const parsedResult = marked.parse(accumulatedMessage);
+
+              setMessages((prevMessages) => {
+                let newMessages = [...prevMessages];
+                if (
+                  messageIndex === null ||
+                  newMessages[messageIndex] === undefined
+                ) {
+                  messageIndex = newMessages.length;
+                  newMessages.push({
+                    id: Math.random().toString(),
+                    content: parsedResult.trim(),
+                    text: accumulatedMessage.trim(),
+                    runId: runId,
+                    sources: sources,
+                    role: "assistant",
+                  });
+                } else if (newMessages[messageIndex] !== undefined) {
+                  newMessages[messageIndex].content = parsedResult.trim();
+                  newMessages[messageIndex].text = accumulatedMessage.trim();
+                  newMessages[messageIndex].runId = runId;
+                  newMessages[messageIndex].sources = sources;
+                }
+                return newMessages;
+              });
+            }
+          },
+        });
+      }
+      return accumulatedMessage;
     } catch (e: any) {
       toast.error(e.toString());
       setMessages((prevMessages) => prevMessages.slice(0, -1));
@@ -287,42 +315,20 @@ export function ChatWindow(props: { titleText?: string }) {
     await sendMessage(question);
   };
 
-  const transcribeAndSendMessage = async (
-    audioBlob: Blob,
-    playAudio: boolean = false,
-  ) => {
-    console.log("transcribe and send message");
-
-    const formData = new FormData();
-    formData.append("file", audioBlob, `${conversationId}.mp3`);
-    formData.append("conversationId", conversationId);
-
-    setIsTranscribing(true);
-    const response = await fetch(apiBaseUrl + "/transcribe_audio", {
-      method: "POST",
-      body: formData,
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      console.log(data);
-      const userMessage = data.transcript;
-      setIsTranscribing(false);
-      await sendMessage(userMessage, playAudio);
-    } else {
-      setIsTranscribing(false);
-      toast.error("Failed to transform user audio to text.");
-    }
-  };
-
-  const playMessageAudio = async (message: string) => {
+  const playMessageAudio = async (message: string, selectedChatbot: string) => {
     console.log("play message audio");
-
+    const formData = new FormData();
+    const botAudioBlob = await fetch(`/bots/${selectedChatbot}.mp3`).then(
+      (res) => res.blob(),
+    );
+    formData.append("bot_voice_file", botAudioBlob, `${selectedChatbot}.mp3`);
+    formData.append("message", message);
+    formData.append("conversationId", conversationId);
+    formData.append("chatbot", selectedChatbot);
     setIsSpeechLoading(true);
     const audioResponse = await fetch(apiBaseUrl + "/text_to_speech", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, conversationId }),
+      body: formData,
     });
     if (!audioResponse.ok) {
       console.error("Failed to fetch audio");
@@ -337,9 +343,6 @@ export function ChatWindow(props: { titleText?: string }) {
     const audio = new Audio(audioUrl);
 
     console.log("playing audio");
-    // setTimeout(() => {
-    //   audio.play();
-    // }, 1000)
     audio.play();
 
     audio.onplay = () => {
@@ -347,11 +350,117 @@ export function ChatWindow(props: { titleText?: string }) {
       setIsSpeechLoading(false);
       setIsSpeechPlaying(true);
     };
-    
+
     audio.onended = () => {
       console.log("audio ended");
       setIsSpeechPlaying(false);
     };
+  };
+
+  const playMessageVideo = async (message: string, selectedChatbot: string) => {
+    console.log("play speech video");
+
+    let formData = new FormData();
+    const botAudioBlob = await fetch(`/bots/${selectedChatbot}.mp3`).then(
+      (res) => res.blob(),
+    );
+    formData.append("bot_voice_file", botAudioBlob, `${selectedChatbot}.mp3`);
+    formData.append("message", message);
+    formData.append("conversationId", conversationId);
+    formData.append("chatbot", selectedChatbot);
+    setIsSpeechLoading(true);
+    const audioResponse = await fetch(apiBaseUrl + "/text_to_speech", {
+      method: "POST",
+      body: formData,
+    });
+    if (!audioResponse.ok) {
+      console.error("Failed to fetch audio");
+      toast.error("Failed to transform text to speech for AI response.");
+
+      setIsSpeechLoading(false);
+      return;
+    }
+    const audioBlob = await audioResponse.blob();
+
+    formData = new FormData();
+    formData.append("bot_speech_file", audioBlob, `${selectedChatbot}.mp3`);
+    const botImageBlob = await fetch(`/bots/${selectedChatbot}.jpg`).then(
+      (res) => res.blob(),
+    );
+    formData.append("bot_image_file", botImageBlob, `${selectedChatbot}.jpg`);
+    formData.append("conversationId", conversationId);
+    formData.append("chatbot", selectedChatbot);
+    const videoResponse = await fetch(apiBaseUrl + "/speech_to_video", {
+      method: "POST",
+      body: formData,
+    });
+    if (!videoResponse.ok) {
+      console.error("Failed to fetch video");
+      toast.error("Failed to transform text to video for AI response.");
+
+      setIsSpeechLoading(false);
+      return;
+    }
+    setIsVideoPlaying(true);
+    const videoBlob = await videoResponse.blob();
+
+    const videoUrl = URL.createObjectURL(videoBlob);
+    const videoTag = document.getElementById("my-video") as HTMLVideoElement;
+    videoTag.src = videoUrl;
+
+    // setTimeout(() => {
+    //   videoTag.play();
+    // }, 1000);
+    videoTag.play();
+
+    videoTag.onplay = () => {
+      console.log("video playing");
+      setIsSpeechLoading(false);
+      setIsSpeechPlaying(true);
+    };
+
+    videoTag.onended = () => {
+      console.log("video ended");
+      setIsSpeechPlaying(false);
+      setIsVideoPlaying(false);
+    };
+  };
+
+  const transcribeAndSendMessage = async (
+    audioBlob: Blob,
+    selectedChatbot: string,
+    callback_action: null | "audio" | "video" = null,
+  ) => {
+    console.log("transcribe and send message");
+
+    const formData = new FormData();
+    formData.append("user_audio_file", audioBlob, `${conversationId}.mp3`);
+    formData.append("conversationId", conversationId);
+
+    setIsTranscribing(true);
+    const response = await fetch(apiBaseUrl + "/transcribe_audio", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log(data);
+      const userMessage = data.transcript;
+      setIsTranscribing(false);
+      sendMessage(userMessage).then((aiMessage) => {
+        if (!aiMessage) return;
+        console.log("AI Message:", aiMessage);
+        if (callback_action === "audio") {
+          playMessageAudio(aiMessage, selectedChatbot);
+        } else if (callback_action === "video") {
+          playMessageVideo(aiMessage, selectedChatbot);
+        }
+      });
+    } else {
+      setIsTranscribing(false);
+      toast.error("Failed to transform user audio to text.");
+    }
   };
 
   return (
@@ -366,9 +475,32 @@ export function ChatWindow(props: { titleText?: string }) {
           </Heading>
         </Flex>
       )}
+      {/* // TODO: even out the heights of the user and bot avatars */}
       <HStack spacing={20}>
         <VStack spacing={2}>
-          <Avatar size="2xl" name="ChatBot" marginBottom={"20px"} />
+          {isVideoPlaying ? (
+            <video
+              // TODO: find another way to not use the video tag id
+              id="my-video"
+              style={{
+                // TODO: even out the sizes of the video and avatar, of find a better way to display the video
+                width: "150px",
+                height: "150px",
+                objectFit: "cover",
+                borderRadius: "50%",
+                border: "3px solid gray",
+              }}
+            >
+              Your browser does not support the video tag.
+            </video>
+          ) : (
+            <Avatar
+              size="2xl"
+              name="ChatBot"
+              src={`/bots/${selectedChatbot}.jpg`}
+              marginBottom={"20px"}
+            />
+          )}
           <IconButton
             colorScheme="blue"
             rounded={"full"}
@@ -387,6 +519,18 @@ export function ChatWindow(props: { titleText?: string }) {
               )
             }
           />
+          <Menu>
+            <MenuButton as={Button} rightIcon={<ChevronDownIcon />}>
+              {selectedChatbot}
+            </MenuButton>
+            <MenuList>
+              {chatbots.map((bot) => (
+                <MenuItem key={bot} onClick={() => handleChatbotSelect(bot)}>
+                  {bot}
+                </MenuItem>
+              ))}
+            </MenuList>
+          </Menu>
         </VStack>
         <VStack spacing={2}>
           <Avatar size="2xl" name="User" marginBottom={"20px"} />
@@ -408,7 +552,7 @@ export function ChatWindow(props: { titleText?: string }) {
               e.preventDefault();
               if (isRecording) {
                 setIsRecording(false);
-                recorderRef.current.stop(true);
+                recorderRef.current.stop(selectedChatbot, "video");
               } else {
                 setIsRecording(true);
                 recorderRef.current.start();
@@ -427,7 +571,6 @@ export function ChatWindow(props: { titleText?: string }) {
             .map((m, index) => (
               <ChatMessageBubble
                 key={m.id}
-                conversationId={conversationId}
                 message={{ ...m }}
                 aiEmoji="🦜"
                 isMostRecent={index === 0}
@@ -458,7 +601,7 @@ export function ChatWindow(props: { titleText?: string }) {
               e.preventDefault();
               if (isRecording) {
                 setIsRecording(false);
-                recorderRef.current.stop();
+                recorderRef.current.stop(selectedChatbot);
               } else {
                 setIsRecording(true);
                 recorderRef.current.start();
