@@ -114,7 +114,6 @@ const createAnswerElements = (
 };
 
 export function ChatMessageBubble(props: {
-  conversationId: string;
   message: Message;
   aiEmoji?: string;
   isMostRecent: boolean;
@@ -259,40 +258,35 @@ export function ChatMessageBubble(props: {
     });
   };
   // NOTE: May need to remove this function in the future
-  const playMessageAudio = async (message: string, conversationId: string) => {
+  const playMessageAudio = (message: string) => {
     console.log("play message audio");
 
-    setIsSpeechLoading(true);
-    const audioResponse = await fetch(apiBaseUrl + "/text_to_speech", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, conversationId }),
-    });
-    if (!audioResponse.ok) {
-      console.error("Failed to fetch audio");
-      toast.error("Failed to transform text to speech for AI response.");
-
-      setIsSpeechLoading(false);
+    // Check if speech synthesis is supported
+    if (!window.speechSynthesis) {
+      console.error("Speech synthesis not supported in this browser.");
+      toast.error("Speech synthesis not supported in this browser.");
       return;
     }
 
-    const audioBlob = await audioResponse.blob();
-    const audioUrl = URL.createObjectURL(audioBlob);
-    const audio = new Audio(audioUrl);
+    // Create a new SpeechSynthesisUtterance instance
+    const utterance = new SpeechSynthesisUtterance(message);
+
+    // Set the pitch and rate
+    utterance.pitch = 1;
+    utterance.rate = 1;
+
+    // Play the speech
+    window.speechSynthesis.speak(utterance);
 
     console.log("playing audio");
-    // setTimeout(() => {
-    //   audio.play();
-    // }, 1000)
-    audio.play();
 
-    audio.onplay = () => {
+    utterance.onstart = () => {
       console.log("audio playing");
       setIsSpeechLoading(false);
       setIsSpeechPlaying(true);
     };
 
-    audio.onended = () => {
+    utterance.onend = () => {
       console.log("audio ended");
       setIsSpeechPlaying(false);
     };
@@ -414,7 +408,7 @@ export function ChatMessageBubble(props: {
               onClick={(e) => {
                 e.preventDefault();
                 if (isSpeechLoading || isSpeechPlaying) return;
-                playMessageAudio(text, props.conversationId);
+                playMessageAudio(text);
               }}
             >
               🔉 Audio
