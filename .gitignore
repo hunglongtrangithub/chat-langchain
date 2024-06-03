@@ -151,6 +151,9 @@ video/
 # ignore model directory
 llm_llama/
 
-# ignore docs and index directories
+# ignore docs directories
 docs/
-index/
+
+# ignore SadTalker model weights 
+sad_talker/checkpoints/*
+sad_talker/gfpgan/*
