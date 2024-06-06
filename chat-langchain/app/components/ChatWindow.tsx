@@ -38,6 +38,7 @@ import { MdMic, MdStop } from "react-icons/md";
 import { Source } from "./SourceBubble";
 import { apiBaseUrl } from "../utils/constants";
 import { RiRobot2Line } from "react-icons/ri";
+import Image from "next/image";
 
 export function ChatWindow(props: { titleText?: string }) {
   const { titleText = "Medical Chatbot" } = props;
@@ -55,25 +56,26 @@ export function ChatWindow(props: { titleText?: string }) {
     { human: string; ai: string }[]
   >([]);
   const [chatbots, setChatbots] = useState<string[]>([]);
-  const [selectedChatbot, setSelectedChatbot] = useState<string>("chatbot1");
+  const [selectedChatbot, setSelectedChatbot] = useState<string>("");
 
   const fetchBots = async () => {
     const response = await fetch("api/bots").then((res) => res.json());
     const botNames = response.bots;
-    console.log("Available chatbots: ", botNames);
+    console.log("Available chatbots:", botNames);
     setChatbots(botNames);
-    setSelectedChatbot(botNames[0]);
   };
   // Load available chatbots on component mount
   useEffect(() => {
     fetchBots();
   }, []);
 
-  // Update the selected chatbot state when a new bot is selected
-  const handleChatbotSelect = (bot: string) => {
-    console.log("Selected chatbot: ", bot);
-    setSelectedChatbot(bot);
-  };
+  // Create a ref for selected chatbot state
+  const selectedChatbotRef = useRef(selectedChatbot);
+  useEffect(() => {
+    selectedChatbotRef.current = selectedChatbot;
+  }, [selectedChatbot]);
+
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const recorderRef = useRef({
     audioChunks: [] as Blob[],
@@ -98,10 +100,7 @@ export function ChatWindow(props: { titleText?: string }) {
       this.mediaRecorder.start(10); // HACK: This is a temporary fix to prevent the first chunk from being empty
     },
 
-    stop: async function (
-      selectedChatbot: string,
-      callback_action: null | "audio" | "video" = null,
-    ) {
+    stop: async function (callback_action: null | "audio" | "video" = null) {
       console.log("stop recording");
       if (this.mediaRecorder) {
         this.mediaRecorder.onstop = async () => {
@@ -112,11 +111,7 @@ export function ChatWindow(props: { titleText?: string }) {
           this.audioChunks = []; // Clear audioChunks after stopping
           this.mediaRecorder = null; // Reset mediaRecorder after stopping
 
-          await transcribeAndSendMessage(
-            audioBlob,
-            selectedChatbot,
-            callback_action,
-          );
+          await transcribeAndSendMessage(audioBlob, callback_action);
         };
         this.mediaRecorder.stop();
       }
@@ -405,30 +400,26 @@ export function ChatWindow(props: { titleText?: string }) {
     const videoBlob = await videoResponse.blob();
 
     const videoUrl = URL.createObjectURL(videoBlob);
-    const videoTag = document.getElementById("my-video") as HTMLVideoElement;
-    videoTag.src = videoUrl;
+    if (videoRef.current) {
+      videoRef.current.src = videoUrl;
+      videoRef.current.play();
 
-    // setTimeout(() => {
-    //   videoTag.play();
-    // }, 1000);
-    videoTag.play();
+      videoRef.current.onplay = () => {
+        console.log("video playing");
+        setIsSpeechLoading(false);
+        setIsSpeechPlaying(true);
+      };
 
-    videoTag.onplay = () => {
-      console.log("video playing");
-      setIsSpeechLoading(false);
-      setIsSpeechPlaying(true);
-    };
-
-    videoTag.onended = () => {
-      console.log("video ended");
-      setIsSpeechPlaying(false);
-      setIsVideoPlaying(false);
-    };
+      videoRef.current.onended = () => {
+        console.log("video ended");
+        setIsSpeechPlaying(false);
+        setIsVideoPlaying(false);
+      };
+    }
   };
 
   const transcribeAndSendMessage = async (
     audioBlob: Blob,
-    selectedChatbot: string,
     callback_action: null | "audio" | "video" = null,
   ) => {
     console.log("transcribe and send message");
@@ -452,9 +443,9 @@ export function ChatWindow(props: { titleText?: string }) {
         if (!aiMessage) return;
         console.log("AI Message:", aiMessage);
         if (callback_action === "audio") {
-          playMessageAudio(aiMessage, selectedChatbot);
+          playMessageAudio(aiMessage, selectedChatbotRef.current);
         } else if (callback_action === "video") {
-          playMessageVideo(aiMessage, selectedChatbot);
+          playMessageVideo(aiMessage, selectedChatbotRef.current);
         }
       });
     } else {
@@ -475,13 +466,13 @@ export function ChatWindow(props: { titleText?: string }) {
           </Heading>
         </Flex>
       )}
-      {/* // TODO: even out the heights of the user and bot avatars */}
-      <HStack spacing={20}>
-        <VStack spacing={2}>
+      <HStack spacing={400}>
+        <VStack spacing={10}>
           {isVideoPlaying ? (
             <video
               // TODO: find another way to not use the video tag id
-              id="my-video"
+              // id="my-video"
+              ref={videoRef}
               style={{
                 // TODO: even out the sizes of the video and avatar, of find a better way to display the video
                 width: "150px",
@@ -490,15 +481,26 @@ export function ChatWindow(props: { titleText?: string }) {
                 borderRadius: "50%",
                 border: "3px solid gray",
               }}
+              autoPlay
             >
               Your browser does not support the video tag.
             </video>
           ) : (
             <Avatar
-              size="2xl"
+              style={{
+                // TODO: even out the sizes of the video and avatar, of find a better way to display the video
+                width: "150px",
+                height: "150px",
+                objectFit: "cover",
+                borderRadius: "50%",
+                border: "3px solid gray",
+              }}
               name="ChatBot"
-              src={`/bots/${selectedChatbot}.jpg`}
-              marginBottom={"20px"}
+              src={
+                selectedChatbot !== ""
+                  ? `/bots/${selectedChatbot}.jpg`
+                  : "/images/bot.png"
+              }
             />
           )}
           <IconButton
@@ -519,21 +521,20 @@ export function ChatWindow(props: { titleText?: string }) {
               )
             }
           />
-          <Menu>
-            <MenuButton as={Button} rightIcon={<ChevronDownIcon />}>
-              {selectedChatbot}
-            </MenuButton>
-            <MenuList>
-              {chatbots.map((bot) => (
-                <MenuItem key={bot} onClick={() => handleChatbotSelect(bot)}>
-                  {bot}
-                </MenuItem>
-              ))}
-            </MenuList>
-          </Menu>
         </VStack>
-        <VStack spacing={2}>
-          <Avatar size="2xl" name="User" marginBottom={"20px"} />
+        <VStack spacing={10}>
+          <Avatar
+            name="User"
+            style={{
+              // TODO: even out the sizes of the video and avatar, of find a better way to display the video
+              width: "150px",
+              height: "150px",
+              objectFit: "cover",
+              borderRadius: "50%",
+              border: "3px solid gray",
+            }}
+            src="/images/user.png"
+          />
           <IconButton
             colorScheme="blue"
             rounded={"full"}
@@ -552,7 +553,7 @@ export function ChatWindow(props: { titleText?: string }) {
               e.preventDefault();
               if (isRecording) {
                 setIsRecording(false);
-                recorderRef.current.stop(selectedChatbot, "video");
+                recorderRef.current.stop("video");
               } else {
                 setIsRecording(true);
                 recorderRef.current.start();
@@ -561,6 +562,24 @@ export function ChatWindow(props: { titleText?: string }) {
           />
         </VStack>
       </HStack>
+      <Menu>
+        <MenuButton as={Button} rightIcon={<ChevronDownIcon />}>
+          {selectedChatbot || "Select Chatbot"}
+        </MenuButton>
+        <MenuList>
+          {chatbots.map((bot) => (
+            <MenuItem
+              key={bot}
+              onClick={() => {
+                console.log("Selected chatbot: ", bot);
+                setSelectedChatbot(bot);
+              }}
+            >
+              {bot}
+            </MenuItem>
+          ))}
+        </MenuList>
+      </Menu>
       <div
         className="flex flex-col-reverse w-full mb-2 overflow-auto"
         ref={messageContainerRef}
@@ -601,7 +620,7 @@ export function ChatWindow(props: { titleText?: string }) {
               e.preventDefault();
               if (isRecording) {
                 setIsRecording(false);
-                recorderRef.current.stop(selectedChatbot);
+                recorderRef.current.stop();
               } else {
                 setIsRecording(true);
                 recorderRef.current.start();
@@ -650,7 +669,12 @@ export function ChatWindow(props: { titleText?: string }) {
             target="_blank"
             className="text-white flex items-center"
           >
-            <img src="/images/github-mark.svg" className="h-4 mr-1" />
+            <Image
+              src="/images/github-mark.svg"
+              alt="Github Logo"
+              width={20}
+              height={20}
+            />
             <span>View Source</span>
           </a>
         </footer>
