@@ -15,26 +15,29 @@ from starlette.background import BackgroundTask
 
 from logger_config import get_logger
 from retriever import CustomRetriever
-from custom_chat_model import DummyChat
+from custom_chat_model import DummyChat, CustomChatHuggingFace
 from rag_chain import ChatRequest, RAGChain
-from tts import DummyTTS
-from transcription import DummyOpenAIWhisperSTT
-from talking_face import DummyTalker
+from tts import DummyTTS, CoquiTTS
+from transcription import DummyOpenAIWhisperSTT, WhisperSTT
+from talking_face import DummyTalker, CustomSadTalker
 from config import settings
 
 logger = get_logger(__name__)
 
 
-# chat_model = CustomChatHuggingFace("meta-llama/Meta-Llama-3-8B-Instruct")
+chat_model = CustomChatHuggingFace("meta-llama/Meta-Llama-3-8B-Instruct")
 # chat_model = CustomChatHuggingFace("facebook/opt-125m")
-chat_model = DummyChat()
-retriever = CustomRetriever(num_docs=5, semantic_ratio=0.1)
+# chat_model = DummyChat()
+retriever = CustomRetriever(num_docs=1, semantic_ratio=0.1)
 chain = RAGChain(retriever, chat_model)
-# tts = CoquiTTS()
-# transcribe = WhisperSTT()
-tts = DummyTTS()
-transcribe = DummyOpenAIWhisperSTT()
-talker = DummyTalker()
+tts = CoquiTTS()
+transcribe = WhisperSTT()
+# tts = DummyTTS()
+# transcribe = DummyOpenAIWhisperSTT()
+# talker = DummyTalker()
+talker = CustomSadTalker()
+
+
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
