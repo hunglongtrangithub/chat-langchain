@@ -1,3 +1,4 @@
+from typing import Optional
 import scipy
 import shutil
 from pathlib import Path
@@ -89,7 +90,9 @@ class CoquiTTS:
         except Exception as e:
             logger.error(f"Failed to load {self.model_name}: {e}")
             raise
-        self.voice_path = Path(__file__).resolve().parent / "voices" / "ellie.mp3"
+        self.default_voice_path = (
+            Path(__file__).resolve().parent / "voices" / "ellie.mp3"
+        )
 
         self.supported_languages = [
             "en",
@@ -111,7 +114,7 @@ class CoquiTTS:
             "hi",
         ]
 
-    def run(self, text: str, file_path: str, voice_path: str = None):
+    def run(self, text: str, file_path: str, voice_path: Optional[str] = None):
         try_create_directory(Path(file_path).resolve().parent)
         try:
             lang_iso = detect(text)
@@ -123,7 +126,9 @@ class CoquiTTS:
         try:
             self.tts_model.tts_to_file(
                 text=text,
-                speaker_wav=str(self.voice_path),
+                speaker_wav=(
+                    str(self.default_voice_path) if voice_path is None else voice_path
+                ),
                 language=lang_iso,
                 file_path=file_path,
             )
@@ -133,7 +138,7 @@ class CoquiTTS:
 
     async def arun(self, text: str, file_path: str, voice_path: str = None):
         try:
-            self.run(text, file_path)
+            self.run(text, file_path, voice_path)
         except Exception as e:
             logger.error(f"Error in async TTS method: {e}")
             raise
@@ -256,7 +261,7 @@ class DummyTTS:
 
 if __name__ == "__main__":
     source_file = "./tests/audio/moe-moe-kyun.mp3"
-    tts_model = DummyOpenAITTS(source_file)
+    tts_model = DummyTTS(source_file)
 
     tts_model.run("Hello, this is a test.", "./tests/test_speech_sync.mp3")
 
