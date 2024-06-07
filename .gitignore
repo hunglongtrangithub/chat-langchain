@@ -144,7 +144,7 @@ pyvenv.cfg
 node_modules/
 .envrc
 
-# Ignore generated speech files and video files 
+# Ignore generated speech files and video files
 audio/
 video/
 
@@ -155,6 +155,6 @@ llm_llama/
 index/
 docs/
 
-# ignore SadTalker model weights 
-sad_talker/checkpoints/*
-sad_talker/gfpgan/*
+# ignore SadTalker model weights
+checkpoints
+gfpgan
