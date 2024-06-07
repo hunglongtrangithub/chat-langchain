@@ -67,7 +67,7 @@ export function EmptyState(props: {
               color={"gray.200"}
               textAlign={"center"}
             >
-              What is LangChain Expression Language?
+              Tell me about Fake Patient2's medical history.
             </Heading>
           </CardHeader>
         </Card>
@@ -89,7 +89,7 @@ export function EmptyState(props: {
               color={"gray.200"}
               textAlign={"center"}
             >
-              What are some ways of doing retrieval augmented generation?
+              How will Fake Patient3 be treated after diagnosis?
             </Heading>
           </CardHeader>
         </Card>
@@ -110,7 +110,7 @@ export function EmptyState(props: {
               color={"gray.200"}
               textAlign={"center"}
             >
-              How do I run a model locally?
+              Describe the symptoms of Fake Patient4.
             </Heading>
           </CardHeader>
         </Card>
