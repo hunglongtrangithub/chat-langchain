@@ -10,39 +10,6 @@ import logging
 logger = get_logger(__name__)
 
 
-# System prompt for Langchain chatbot
-SYSTEM_TEMPLATE = """\
-You are an expert programmer and problem-solver, tasked with answering any question \
-about Langchain.
-
-Generate a comprehensive and informative answer of 80 words or less for the \
-given question based solely on the provided search results (URL and content). You must \
-only use information from the provided search results. Use an unbiased and \
-journalistic tone. Combine search results together into a coherent answer. Do not \
-repeat text. Cite search results using [${{number}}] notation. Only cite the most \
-relevant results that answer the question accurately. Place these citations at the end \
-of the sentence or paragraph that reference them - do not put them all at the end. If \
-different results refer to different entities within the same name, write separate \
-answers for each entity.
-
-You should use bullet points in your answer for readability. Put citations where they apply
-rather than putting them all at the end.
-
-If there is nothing in the context relevant to the question at hand, just say "Hmm, \
-I'm not sure." Don't try to make up an answer.
-
-Anything between the following `context`  html blocks is retrieved from a knowledge \
-bank, not part of the conversation with the user. 
-
-<context>
-    {context} 
-<context/>
-
-REMEMBER: If there is no relevant information within the context, just say "Hmm, I'm \
-not sure." Don't try to make up an answer. Anything between the preceding 'context' \
-html blocks is retrieved from a knowledge bank, not part of the conversation with the \
-user.\
-"""
 # System prompt for medical chatbot
 SYSTEM_TEMPLATE = """\
 You are a medical assistant, tasked with answering any question about the provided \
@@ -77,17 +44,9 @@ bank, not part of the conversation with the user.
 REMEMBER: If there is no relevant information within the context, just say "Hmm, I'm \
 not sure." Don't try to make up an answer. Anything between the preceding 'context' \
 html blocks is retrieved from a knowledge bank, not part of the conversation with the \
-user.\
+user. Always answer in 80 words or less.\
 """
 
-REPHRASE_TEMPLATE = """\
-Given the following conversation and a follow up question, rephrase the follow up \
-question to be a standalone question.
-
-Chat History:
-{chat_history}
-Follow Up Input: {question}
-Standalone Question:"""
 
 # Template for asking the model to extract the name of the patient
 REPHRASE_TEMPLATE = """
@@ -192,15 +151,15 @@ class RAGChain:
             )
         try:
             docs = await self.retriever.aget_relevant_documents(query_question)
-            self.chat_logger.info(
-                f"Retrieved {len(docs)} documents.\n"
-                + "\n".join(
-                    [
-                        f"<doc id='{i}'>{doc.page_content}</doc>"
-                        for i, doc in enumerate(docs)
-                    ]
-                )
-            )
+            # self.chat_logger.info(
+            #     f"Retrieved {len(docs)} documents.\n"
+            #     + "\n".join(
+            #         [
+            #             f"<doc id='{i}'>{doc.page_content}</doc>"
+            #             for i, doc in enumerate(docs)
+            #         ]
+            #     )
+            # )
         except Exception as e:
             logger.error("Error occurred while retrieving documents:", e)
             docs = []
@@ -232,15 +191,15 @@ class RAGChain:
             )
         try:
             docs = self.retriever.get_relevant_documents(query_question)
-            self.chat_logger.info(
-                f"Retrieved {len(docs)} documents.\n"
-                + "\n".join(
-                    [
-                        f"<doc id='{i}'>{doc.page_content}</doc>"
-                        for i, doc in enumerate(docs)
-                    ]
-                )
-            )
+            # self.chat_logger.info(
+            #     f"Retrieved {len(docs)} documents.\n"
+            #     + "\n".join(
+            #         [
+            #             f"<doc id='{i}'>{doc.page_content}</doc>"
+            #             for i, doc in enumerate(docs)
+            #         ]
+            #     )
+            # )
         except Exception as e:
             logger.error("Error occurred while retrieving documents:", e)
             docs = []
