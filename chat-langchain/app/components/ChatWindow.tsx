@@ -326,8 +326,9 @@ export function ChatWindow(props: { titleText?: string }) {
       body: formData,
     });
     if (!audioResponse.ok) {
-      console.error("Failed to fetch audio");
-      toast.error("Failed to transform text to speech for AI response.");
+      const errorMessage = await audioResponse.text();
+      console.error("Failed to fetch audio:", errorMessage);
+      toast.error("Failed to transform text to speech for AI response:" + errorMessage);
 
       setIsSpeechLoading(false);
       return;
@@ -369,8 +370,9 @@ export function ChatWindow(props: { titleText?: string }) {
       body: formData,
     });
     if (!audioResponse.ok) {
-      console.error("Failed to fetch audio");
-      toast.error("Failed to transform text to speech for AI response.");
+      const errorMessage = await audioResponse.text();
+      console.error("Failed to fetch audio:", errorMessage);
+      toast.error("Failed to transform text to speech for AI response:" + errorMessage);
 
       setIsSpeechLoading(false);
       return;
@@ -390,8 +392,9 @@ export function ChatWindow(props: { titleText?: string }) {
       body: formData,
     });
     if (!videoResponse.ok) {
-      console.error("Failed to fetch video");
-      toast.error("Failed to transform text to video for AI response.");
+      const errorMessage = await videoResponse.text();
+      console.error("Failed to fetch video:", errorMessage);
+      toast.error("Failed to transform text to video for AI response:" + errorMessage);
 
       setIsSpeechLoading(false);
       return;
@@ -470,11 +473,8 @@ export function ChatWindow(props: { titleText?: string }) {
         <VStack spacing={10}>
           {isVideoPlaying ? (
             <video
-              // TODO: find another way to not use the video tag id
-              // id="my-video"
               ref={videoRef}
               style={{
-                // TODO: even out the sizes of the video and avatar, of find a better way to display the video
                 width: "150px",
                 height: "150px",
                 objectFit: "cover",
@@ -488,7 +488,6 @@ export function ChatWindow(props: { titleText?: string }) {
           ) : (
             <Avatar
               style={{
-                // TODO: even out the sizes of the video and avatar, of find a better way to display the video
                 width: "150px",
                 height: "150px",
                 objectFit: "cover",
@@ -526,7 +525,6 @@ export function ChatWindow(props: { titleText?: string }) {
           <Avatar
             name="User"
             style={{
-              // TODO: even out the sizes of the video and avatar, of find a better way to display the video
               width: "150px",
               height: "150px",
               objectFit: "cover",
